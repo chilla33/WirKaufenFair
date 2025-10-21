@@ -550,8 +550,8 @@ async function showPendingSelection() {
         const found = pendingItem.suggestions.find(s => {
             const p = s.product;
             return (original.id && p.id && original.id === p.id) ||
-                   (original.barcode && p.barcode && original.barcode === p.barcode) ||
-                   ((original.product_identifier || original.product_name) === (p.product_identifier || p.product_name));
+                (original.barcode && p.barcode && original.barcode === p.barcode) ||
+                ((original.product_identifier || original.product_name) === (p.product_identifier || p.product_name));
         });
         if (found) {
             pendingItem.matched = found.product;
@@ -698,7 +698,7 @@ async function enrichSuggestionsWithRatingsAndPrices(suggestions) {
         const p = sug.product;
         const pid = p.barcode || p.product_identifier || p.product_name;
         if (!pid) return;
-        
+
         // Load rating stats
         try {
             const ratingUrl = `/api/v1/ratings/stats?product_identifier=${encodeURIComponent(pid)}${selectedStore ? '&store_name=' + encodeURIComponent(selectedStore) : ''}`;
@@ -709,7 +709,7 @@ async function enrichSuggestionsWithRatingsAndPrices(suggestions) {
         } catch (e) {
             console.warn('Failed to load ratings:', e);
         }
-        
+
         // Load best price if not already set
         if (!p.current_price && selectedStore) {
             try {
@@ -962,7 +962,7 @@ function removeItem(index) {
     renderList();
 }
 
-window.editShoppingItem = async function(index) {
+window.editShoppingItem = async function (index) {
     const base = shoppingList[index];
     if (!base) return;
     pendingEditIndex = index;
@@ -1018,10 +1018,10 @@ async function submitPrice(index) {
         alert('Bitte gib einen gültigen Preis ein!');
         return;
     }
-    
+
     const matched = it.matched;
     const pid = matched.barcode || matched.product_identifier || matched.product_name;
-    
+
     try {
         const res = await fetch('/api/v1/price_reports', {
             method: 'POST',
@@ -1034,7 +1034,7 @@ async function submitPrice(index) {
                 size_unit: matched.size_unit || null
             })
         });
-        
+
         if (res.ok) {
             alert('✓ Preis gemeldet! Andere können ihn jetzt bestätigen.');
             inputEl.value = '';
@@ -1123,7 +1123,7 @@ async function renderList() {
 
         // Rating stars (1-5)
         const rating = item.rating || 0;
-        const stars = [1,2,3,4,5].map(n => `<span style="cursor:pointer;color:${n<=rating?'#f59e0b':'#cbd5e1'};font-size:18px;" onclick="window.setItemRating(${i}, ${n}); renderList();">★</span>`).join('');
+        const stars = [1, 2, 3, 4, 5].map(n => `<span style="cursor:pointer;color:${n <= rating ? '#f59e0b' : '#cbd5e1'};font-size:18px;" onclick="window.setItemRating(${i}, ${n}); renderList();">★</span>`).join('');
 
         // Notes editor
         const notes = item.notes || '';
@@ -1149,7 +1149,7 @@ async function renderList() {
                         <button onclick="window.editShoppingItem(${i})" style="background:#0ea5e9;color:white;border:none;padding:6px 10px;border-radius:6px;cursor:pointer;">Produkt ändern</button>
                         <div style="display:flex;align-items:center;gap:6px;">
                             <button onclick="window.changeItemCount(${i}, -1)" style="width:28px;height:28px;border-radius:6px;border:1px solid #e5e7eb;">-</button>
-                            <span style="min-width:24px;text-align:center;font-weight:600;">${(item.calculation?.count)||1}</span>
+                            <span style="min-width:24px;text-align:center;font-weight:600;">${(item.calculation?.count) || 1}</span>
                             <button onclick="window.changeItemCount(${i}, 1)" style="width:28px;height:28px;border-radius:6px;border:1px solid #e5e7eb;">+</button>
                         </div>
                         <div title="Bewertung" style="margin-left:8px;">${stars}</div>
@@ -1218,31 +1218,31 @@ function exportList() {
         alert('Deine Einkaufsliste ist leer!');
         return;
     }
-    
+
     let text = `🛒 Einkaufsliste — ${selectedStore || 'Unbekannt'}\\n`;
     text += `📅 ${new Date().toLocaleDateString('de-DE')}\\n\\n`;
-    
+
     shoppingList.forEach((item, i) => {
         const matched = item.matched;
         const name = matched ? (matched.product_identifier || matched.product_name) : item.query;
         const count = item.calculation?.count || 1;
         const price = matched && (matched.current_price || matched.estimated_price);
         const priceText = price ? ` — ${(price * count).toFixed(2)} €` : '';
-        
-        text += `${i+1}. ${count}x ${name}${priceText}\\n`;
-        
+
+        text += `${i + 1}. ${count}x ${name}${priceText}\\n`;
+
         if (item.rating) {
             const stars = '★'.repeat(item.rating) + '☆'.repeat(5 - item.rating);
             text += `   Bewertung: ${stars}\\n`;
         }
-        
+
         if (item.notes) {
             text += `   Notiz: ${item.notes}\\n`;
         }
-        
+
         text += '\\n';
     });
-    
+
     // Total
     let total = 0;
     shoppingList.forEach(item => {
@@ -1252,11 +1252,11 @@ function exportList() {
             total += itemTotal;
         }
     });
-    
+
     if (total > 0) {
         text += `\\nGesamtsumme: ca. ${total.toFixed(2)} €`;
     }
-    
+
     // Copy to clipboard
     navigator.clipboard.writeText(text).then(() => {
         alert('✓ Einkaufsliste wurde in die Zwischenablage kopiert!');
