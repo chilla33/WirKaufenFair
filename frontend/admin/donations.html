@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="de">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Admin: Donations</title>
+    <link rel="stylesheet" href="/style.css">
+    <link rel="icon" href="/assets/favicon.png">
+</head>
+
+<body>
+    <header
+        style="background:var(--card);padding:12px 24px;display:flex;align-items:center;gap:12px;box-shadow:0 1px 2px rgba(2,6,23,0.04)">
+        <a href="/"><img src="/assets/logo.png" srcset="/assets/logo@2x.png 2x" alt="WirKaufenFair"
+                style="height:56px"></a>
+        <div style="font-weight:700;font-size:18px">WirKaufenFair</div>
+    </header>
+
+    <main class="card" style="max-width:1000px;margin:24px auto;">
+        <h1>Spenden (Admin)</h1>
+        <table id="don-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Betrag</th>
+                    <th>Währung</th>
+                    <th>Donor</th>
+                    <th>Provider</th>
+                    <th>Zeit</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </main>
+    <script>
+        // ensure admin API key present for protected actions
+        (function ensureAdminKey() {
+            if (!localStorage.getItem('wf_admin_api_key')) {
+                const k = prompt('Admin API Key (wird im Browser gespeichert)');
+                if (k) localStorage.setItem('wf_admin_api_key', k);
+            }
+        })();
+
+        async function load() {
+            const res = await fetch('/api/v1/donations');
+            const data = await res.json();
+            const tbody = document.querySelector('#don-table tbody');
+            tbody.innerHTML = '';
+            data.forEach(d => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `<td>${d.id}</td><td>${d.amount}</td><td>${d.currency}</td><td>${d.donor_name || ''} ${d.donor_email || ''}</td><td>${d.provider || ''}</td><td>${d.created_at}</td>`;
+                tbody.appendChild(tr);
+            })
+        }
+        document.addEventListener('DOMContentLoaded', load);
+    </script>
+</body>
+
+</html>

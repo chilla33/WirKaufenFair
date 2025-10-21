@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+sqlalchemy
+pydantic
+alembic
+pytest
+requests
+httpx
+python-multipart

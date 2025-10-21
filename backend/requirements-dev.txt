@@ -1,0 +1,6 @@
+pytest
+httpx
+pytest-asyncio
+starlette
+fastapi
+requests

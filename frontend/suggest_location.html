@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="de">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Produktstandort vorschlagen</title>
+    <link rel="stylesheet" href="/style.css">
+    <link rel="manifest" href="/static/manifest.webmanifest">
+    <meta name="theme-color" content="#0ea5e9">
+</head>
+
+<body>
+    <main style="max-width:720px;margin:40px auto;font-family:system-ui,Segoe UI,Roboto,Helvetica,sans-serif;">
+        <h1>Produktstandort vorschlagen</h1>
+        <p>Gib ein, wo du ein Produkt im Laden gefunden hast.</p>
+
+        <form id="suggest-form">
+            <label for="product_identifier">Produkt (EAN/Namen)</label><br>
+            <input id="product_identifier" name="product_identifier" required style="width:100%" />
+            <br><br>
+
+            <label for="store_name">Ladenname</label><br>
+            <input id="store_name" name="store_name" required style="width:100%" />
+            <br><br>
+
+            <label for="aisle">Aisle / Bereich</label><br>
+            <input id="aisle" name="aisle" style="width:100%" />
+            <br><br>
+
+            <label for="shelf_label">Shelf (Regal)</label><br>
+            <input id="shelf_label" name="shelf_label" style="width:100%" />
+            <br><br>
+
+            <label for="photo_url">Foto (optional, URL)</label><br>
+            <input id="photo_url" name="photo_url" style="width:100%" placeholder="https://..." />
+            <br>
+            <div style="margin:8px 0;">Oder lade ein Bild hoch (max 5MB) bzw. nimm eins mit der Kamera auf:</div>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                <input id="photo_file" type="file" accept="image/*" capture="environment" style="max-width:300px;" />
+                <button type="button" id="photo_capture_btn">📷 Foto aufnehmen</button>
+            </div>
+            <div id="photo_preview_wrap" style="margin-top:8px;display:none;">
+                <img id="photo_preview" alt="Vorschau"
+                    style="max-width:100%;height:auto;border:1px solid #e5e7eb;border-radius:6px;" />
+            </div>
+            <br>
+
+            <label for="contributor">Dein Name (optional)</label><br>
+            <input id="contributor" name="contributor" style="width:100%" />
+            <br><br>
+
+            <button type="submit">Vorschlagen</button>
+        </form>
+
+        <div id="status" style="margin-top:16px"></div>
+    </main>
+    <script src="/assets/suggest_location.js"></script>
+        <script>
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.register('/static/assets/sw.js').catch(()=>{});
+            }
+        </script>
+</body>
+
+</html>

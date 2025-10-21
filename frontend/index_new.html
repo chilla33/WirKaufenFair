@@ -4,9 +4,9 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>WirKaufenFair — Community-Produktstandorte</title>
+    <title>WirKaufenFair — Intelligente Einkaufsliste & Community-Produktstandorte</title>
     <meta name="description"
-        content="Finde nachhaltige Produkte in deiner Nähe. Community-gestützte Produktstandorte, Reparaturinfos und faire Einkaufsempfehlungen." />
+        content="Erstelle deine intelligente Einkaufsliste: Wähle deinen Laden, füge Artikel hinzu und erhalte passende Produktvorschläge — sortiert nach Gang und Regal." />
     <link rel="icon" href="/assets/favicon.png">
     <link rel="manifest" href="/static/manifest.webmanifest">
     <meta name="theme-color" content="#0ea5e9">
@@ -39,19 +39,25 @@
 
         .cta-btn {
             display: inline-block;
-            padding: 12px 24px;
+            padding: 14px 28px;
             background: white;
             color: #0ea5e9;
             text-decoration: none;
-            border-radius: 6px;
-            font-weight: 600;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 1.1rem;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
             transition: transform 0.2s, box-shadow 0.2s;
         }
 
         .cta-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+            transform: translateY(-3px);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        .cta-btn.primary {
+            background: #22c55e;
+            color: white;
         }
 
         .cta-btn.secondary {
@@ -105,32 +111,29 @@
         <div style="font-weight:700;font-size:18px">WirKaufenFair</div>
         <nav style="margin-left:auto;display:flex;gap:16px;align-items:center;">
             <a href="/static/shopping_list.html"
-                style="background:#0ea5e9;color:white;padding:8px 16px;border-radius:6px;text-decoration:none;font-weight:600;">🛒
+                style="background:#22c55e;color:white;padding:8px 16px;border-radius:6px;text-decoration:none;font-weight:700;">🛒
                 Einkaufsliste</a>
             <a href="/static/produktvorschlaege.html">Vorschläge</a>
-            <a href="/static/suggest_location.html"
-                style="background:#0ea5e9;color:white;padding:8px 16px;border-radius:6px;text-decoration:none;font-weight:600;">Vorschlagen</a>
+            <a href="/static/suggest_location.html">Melden</a>
             <a href="/admin">Admin</a>
         </nav>
     </header>
 
     <section class="hero">
-        <h1>🌍 Fair einkaufen, lokal finden</h1>
-        <p>Community-gestützte Produktstandorte für nachhaltige und faire Produkte in deiner Nähe.</p>
+        <h1>🛒 Intelligente Einkaufsliste</h1>
+        <p>Wähle deinen Laden, füge Artikel hinzu und erhalte passende Produktvorschläge — optimiert sortiert nach Gang
+            und Regal.</p>
         <div class="cta-buttons">
-            <a href="/static/shopping_list.html" class="cta-btn">🛒 Intelligente Einkaufsliste</a>
-            <a href="/static/suggest_location.html" class="cta-btn">📍 Produktstandort melden</a>
-            <a href="/static/produktvorschlaege.html" class="cta-btn secondary">🔍 Vorschläge durchsuchen</a>
+            <a href="/static/shopping_list.html" class="cta-btn primary">🛒 Einkaufsliste starten</a>
+            <a href="/static/suggest_location.html" class="cta-btn secondary">📍 Standort melden</a>
         </div>
     </section>
 
     <section class="features">
         <div class="feature-card">
             <h3>🛒 Intelligente Einkaufsliste</h3>
-            <p>Wähle deinen Laden, gib Artikel mit Menge ein und erhalte faire Vorschläge – sortiert nach Gang/Regal.
-                Nutzt lokale Community-Daten und greift automatisch auf Open Food Facts zurück, wenn noch wenig bekannt
-                ist.
-                Die fairsten Produkte stehen oben; mindestens drei Alternativen werden angezeigt.</p>
+            <p>Wähle deinen Laden, erstelle deine Liste (z.B. "Joghurt") und erhalte passende Produkte mit Gang, Regal
+                und Foto — optimal sortiert für deinen Einkaufsweg.</p>
         </div>
         <div class="feature-card">
             <h3>📦 Produkte finden</h3>
@@ -157,16 +160,13 @@
             <p>Installiere die Web-App auf deinem Handy oder Desktop — offline-fähig, schnell, keine Store-Installation
                 nötig.</p>
         </div>
-        <div class="feature-card">
-            <h3>🌱 Open Source & Fair</h3>
-            <p>Keine Werbung, kein Tracking, keine versteckten Kosten. Transparent, community-driven und ethisch.</p>
-        </div>
     </section>
 
     <footer>
         <p>&copy; 2025 WirKaufenFair — Ein Community-Projekt für bewussten Konsum.</p>
-        <p><a href="/static/produktvorschlaege.html">Vorschläge</a> • <a href="/static/suggest_location.html">Melden</a>
-            • <a href="/admin">Admin</a></p>
+        <p><a href="/static/shopping_list.html">🛒 Einkaufsliste</a> • <a
+                href="/static/produktvorschlaege.html">Vorschläge</a> • <a
+                href="/static/suggest_location.html">Melden</a> • <a href="/admin">Admin</a></p>
     </footer>
 
     <script>

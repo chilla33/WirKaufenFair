@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="de">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Spenden — WirkaufenFair</title>
+    <link rel="icon" href="/assets/favicon.png">
+    <link rel="stylesheet" href="/style.css">
+</head>
+
+<body>
+    <header
+        style="background:var(--card);padding:12px 24px;display:flex;align-items:center;gap:12px;box-shadow:0 1px 2px rgba(2,6,23,0.04)">
+        <a href="/"><img src="/assets/logo.png" alt="WirKaufenFair" style="height:56px"></a>
+        <div style="font-weight:700;font-size:18px">WirKaufenFair</div>
+    </header>
+
+    <main class="card" style="max-width:720px;margin:40px auto;">
+        <h1>Unterstütze WirKaufenFair</h1>
+        <p>Wir sind ein kleines Open‑Source Projekt. Du kannst uns über PayPal oder Stripe unterstützen. Für Testzwecke
+            sind die Buttons externe Links (ersetze mit echten Checkout‑Links später).</p>
+
+        <div style="display:flex;gap:10px;margin-bottom:16px">
+            <a class="button" href="https://www.paypal.com/donate" target="_blank"><button>PayPal</button></a>
+            <a class="button" href="https://buy.stripe.com/test_" target="_blank"><button>Stripe</button></a>
+        </div>
+
+        <hr>
+        <h3>Offline/Manual Spende eintragen (nur Admin)</h3>
+        <form id="don-form">
+            <input id="amount" placeholder="Betrag" required />
+            <input id="currency" placeholder="Währung (EUR)" value="EUR" />
+            <input id="donor_name" placeholder="Name" />
+            <input id="donor_email" placeholder="Email" />
+            <button type="submit">Eintragen</button>
+        </form>
+        <div id="status"></div>
+    </main>
+    <script>
+        document.getElementById('don-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const data = {
+                amount: parseFloat(document.getElementById('amount').value),
+                currency: document.getElementById('currency').value || 'EUR',
+                donor_name: document.getElementById('donor_name').value,
+                donor_email: document.getElementById('donor_email').value,
+                provider: 'offline'
+            };
+            const resp = await fetch('/api/v1/donations', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+            const j = await resp.json();
+            if (resp.ok) {
+                document.getElementById('status').innerText = 'Spende eingetragen, ID=' + j.id;
+                e.target.reset();
+            } else {
+                document.getElementById('status').innerText = 'Fehler: ' + JSON.stringify(j);
+            }
+        })
+    </script>
+</body>
+
+</html>

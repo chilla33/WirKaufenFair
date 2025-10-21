@@ -1,0 +1,1361 @@
+// Shopping list module with quantity support
+let selectedStore = '';
+let shoppingList = [];
+let allProducts = [];
+let pendingItem = null; // Item waiting for product selection confirmation
+// Toggle to use live Open Food Facts via backend proxy
+const useLiveOFF = true;
+
+document.addEventListener('DOMContentLoaded', async () => {
+    await loadStores();
+    await loadAllProducts();
+
+    const storeSelect = document.getElementById('store-select');
+    const quantityInput = document.getElementById('quantity-input');
+    const itemInput = document.getElementById('item-input');
+    const addBtn = document.getElementById('add-btn');
+    const clearBtn = document.getElementById('clear-btn');
+
+    storeSelect.addEventListener('change', (e) => {
+        selectedStore = e.target.value;
+        renderList();
+    });
+
+    addBtn.addEventListener('click', () => addItem());
+    itemInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') addItem();
+    });
+    quantityInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') itemInput.focus();
+    });
+
+    clearBtn.addEventListener('click', () => {
+        if (confirm('Einkaufsliste wirklich leeren?')) {
+            shoppingList = [];
+            renderList();
+        }
+    });
+
+    // Autocomplete wiring for item input
+    try {
+        setupItemAutocomplete(itemInput);
+    } catch (e) {
+        console.warn('Autocomplete setup failed:', e);
+    }
+});
+
+async function loadStores() {
+    try {
+        // Always fetch local DB products to prefer store-specific matches
+        const res = await fetch('/api/v1/product_locations');
+        const data = await res.json();
+        allProducts = Array.isArray(data) ? data : [];
+
+        // Build store list: static popular stores + stores from DB
+        const staticStores = ['REWE', 'EDEKA', 'ALDI', 'LIDL', 'PENNY', 'NETTO', 'dm', 'ROSSMANN'];
+        const dbStores = [...new Set(allProducts.map(p => p.store_name))];
+        let stores = [...new Set([...staticStores, ...dbStores])].filter(Boolean).sort();
+        const select = document.getElementById('store-select');
+        stores.forEach(store => {
+            const opt = document.createElement('option');
+            opt.value = store;
+            opt.textContent = store;
+            select.appendChild(opt);
+        });
+    } catch (err) {
+        console.error('Error loading stores:', err);
+    }
+}
+
+async function loadAllProducts() {
+    // Already loaded in loadStores
+}
+// Autocomplete using OFF proxy
+function setupItemAutocomplete(inputEl) {
+    const acEl = document.getElementById('item-autocomplete');
+    if (!inputEl || !acEl) return;
+
+    let acAbort = null;
+    let hideTimeout = null;
+
+    const hide = () => {
+        acEl.style.display = 'none';
+        acEl.innerHTML = '';
+    };
+
+    const show = (html) => {
+        acEl.innerHTML = html;
+        acEl.style.display = 'block';
+    };
+
+    const fetchSuggestions = async (q) => {
+        if (acAbort) acAbort.abort();
+        const ctrl = new AbortController();
+        acAbort = ctrl;
+        try {
+            const url = `/api/v1/openfoodfacts/autocomplete?query=${encodeURIComponent(q)}&limit=8`;
+            const res = await fetch(url, { signal: ctrl.signal });
+            if (!res.ok) throw new Error('ac failed');
+            return await res.json();
+        } catch (e) {
+            return [];
+        }
+    };
+
+    inputEl.addEventListener('input', async () => {
+        const q = inputEl.value.trim();
+        if (q.length < 2) { hide(); return; }
+        const items = await fetchSuggestions(q);
+        if (!items || items.length === 0) { hide(); return; }
+        const html = items.map(it => `
+            <div class="ac-item" data-title="${(it.display || '').replace(/"/g, '&quot;')}">
+                ${it.image_url ? `<img src="${it.image_url}" onerror="this.style.display='none'" alt="" style="width:40px;height:40px;border-radius:4px;object-fit:cover;">` : '<div style="width:40px;height:40px;border-radius:4px;background:#e5e7eb;display:flex;align-items:center;justify-content:center;">📦</div>'}
+                <div>
+                    <div class="ac-title">${it.display || ''}</div>
+                    ${it.barcode ? `<div class="ac-sub">${it.barcode}</div>` : ''}
+                </div>
+            </div>
+        `).join('');
+        show(html);
+    });
+
+    acEl.addEventListener('mousedown', (e) => {
+        const item = e.target.closest('.ac-item');
+        if (!item) return;
+        const title = item.getAttribute('data-title') || '';
+        inputEl.value = title;
+        hide();
+        // Focus quantity next to speed up flow
+        const qEl = document.getElementById('quantity-input');
+        if (qEl) qEl.focus();
+    });
+
+    inputEl.addEventListener('blur', () => {
+        hideTimeout = setTimeout(hide, 120);
+    });
+    inputEl.addEventListener('focus', () => {
+        if (hideTimeout) { clearTimeout(hideTimeout); hideTimeout = null; }
+    });
+}
+
+// Live OFF fetch via backend proxy
+async function fetchOffProducts(query, pageSize = 25) {
+    const params = new URLSearchParams({
+        query: query,
+        country: 'de',
+        page: '1',
+        page_size: String(pageSize)
+    });
+    const res = await fetch(`/api/v1/openfoodfacts/search?${params.toString()}`);
+    if (!res.ok) throw new Error('OFF fetch failed');
+    const data = await res.json();
+    return data.products || [];
+}
+
+// Fuzzy matching helper: Levenshtein distance
+function levenshteinDistance(a, b) {
+    const an = a.length;
+    const bn = b.length;
+    if (an === 0) return bn;
+    if (bn === 0) return an;
+
+    const matrix = Array(bn + 1).fill(null).map(() => Array(an + 1).fill(null));
+
+    for (let i = 0; i <= an; i++) matrix[0][i] = i;
+    for (let j = 0; j <= bn; j++) matrix[j][0] = j;
+
+    for (let j = 1; j <= bn; j++) {
+        for (let i = 1; i <= an; i++) {
+            const indicator = a[i - 1] === b[j - 1] ? 0 : 1;
+            matrix[j][i] = Math.min(
+                matrix[j][i - 1] + 1,
+                matrix[j - 1][i] + 1,
+                matrix[j - 1][i - 1] + indicator
+            );
+        }
+    }
+
+    return matrix[bn][an];
+}
+
+// Synonym dictionary
+const SYNONYMS = {
+    'bio': ['öko', 'organic', 'demeter', 'bioland', 'naturland'],
+    'milch': ['h-milch', 'frischmilch', 'vollmilch', 'fettarme'],
+    'joghurt': ['yoghurt', 'jogurt', 'yogurt'],
+    'käse': ['kaese', 'cheese'],
+    'wurst': ['aufschnitt', 'fleischwurst'],
+    'brot': ['vollkornbrot', 'weißbrot', 'weissbrot', 'toast']
+};
+
+// Category keywords
+const CATEGORIES = {
+    'obst': ['apfel', 'birne', 'banane', 'orange', 'erdbeere', 'kirsche', 'pflaume', 'pfirsich', 'melone', 'traube'],
+    'gemüse': ['tomate', 'gurke', 'paprika', 'salat', 'möhre', 'karotte', 'zwiebel', 'kartoffel', 'kohl', 'brokkoli'],
+    'milchprodukte': ['milch', 'joghurt', 'käse', 'quark', 'sahne', 'butter', 'creme'],
+    'fleisch': ['rind', 'schwein', 'hähnchen', 'huhn', 'pute', 'wurst', 'schinken'],
+    'getränke': ['wasser', 'saft', 'limonade', 'cola', 'tee', 'kaffee', 'bier', 'wein']
+};
+
+// Brand keywords (common brands)
+const BRANDS = ['danone', 'müller', 'arla', 'weihenstephan', 'landliebe', 'bärenmarke', 'milram', 'nestlé', 'ferrero', 'nutella', 'coca-cola', 'pepsi', 'dr. oetker', 'knorr', 'maggi'];
+
+// Map OFF eco/nutri grades to numeric scores (A best)
+const GRADE_SCORE = { 'A': 1.0, 'B': 0.8, 'C': 0.6, 'D': 0.4, 'E': 0.2 };
+
+function computeFairScore(product, source) {
+    // Comprehensive fairness: eco, nutrition, ethics, verification
+    const eco = (product.ecoscore || product.ecoscore_grade || '').toString().toUpperCase();
+    const nutri = (product.nutriscore || product.nutriscore_grade || '').toString().toUpperCase();
+    const ecoScore = GRADE_SCORE[eco] || 0;
+    const nutriScore = GRADE_SCORE[nutri] || 0;
+
+    // Ethics score (0.0-1.0, from backend)
+    const ethicsScore = product.ethics_score || 0.6; // Default neutral if missing
+
+    const verifiedBoost = product.status === 'verified' ? 0.05 : 0;
+    const localBoost = source === 'local' ? 0.03 : 0;
+
+    // Weighted formula: 40% eco, 30% ethics, 20% nutri, 10% verified/local
+    return (ecoScore * 0.4) + (ethicsScore * 0.3) + (nutriScore * 0.2) + verifiedBoost + localBoost;
+}
+
+function deduplicateCandidates(candidates) {
+    // Group by barcode or normalized identifier to merge duplicates
+    const groups = new Map();
+
+    for (const cand of candidates) {
+        const p = cand.product;
+        // Use barcode as primary key, fallback to normalized product name
+        const key = p.barcode || normalizeProductName(p.product_identifier || p.product_name || '');
+
+        if (!groups.has(key)) {
+            groups.set(key, []);
+        }
+        groups.get(key).push(cand);
+    }
+
+    // For each group, prefer local over OFF, then best score
+    const deduped = [];
+    for (const [key, items] of groups.entries()) {
+        if (items.length === 1) {
+            deduped.push(items[0]);
+            continue;
+        }
+
+        // Sort: local first, then by score
+        items.sort((a, b) => {
+            if (a.source !== b.source) return a.source === 'local' ? -1 : 1;
+            return b.score - a.score;
+        });
+
+        // Take the best (local if available, otherwise best OFF)
+        const best = items[0];
+
+        // Merge data: prefer local aisle/shelf, but keep OFF eco/nutri if missing
+        if (items.length > 1) {
+            const local = items.find(i => i.source === 'local');
+            const off = items.find(i => i.source === 'off');
+
+            if (local && off) {
+                // Enrich local with OFF data
+                if (!local.product.ecoscore && off.product.ecoscore) {
+                    local.product.ecoscore = off.product.ecoscore;
+                    local.product.ecoscore_grade = off.product.ecoscore_grade;
+                }
+                if (!local.product.nutriscore && off.product.nutriscore) {
+                    local.product.nutriscore = off.product.nutriscore;
+                    local.product.nutriscore_grade = off.product.nutriscore_grade;
+                }
+                if (!local.product.image_url && off.product.image_url) {
+                    local.product.image_url = off.product.image_url;
+                }
+            }
+        }
+
+        deduped.push(best);
+    }
+
+    return deduped;
+}
+
+function normalizeProductName(name) {
+    // Normalize product name for deduplication: lowercase, remove special chars, collapse whitespace
+    return name.toLowerCase()
+        .replace(/[^a-z0-9äöüß\s]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function calculateUnitPrice(product) {
+    // Calculate price per kg or L for comparison
+    const price = product.current_price || product.estimated_price;
+    if (!price) return null;
+
+    const amount = product.size_amount;
+    const unit = (product.size_unit || '').toLowerCase();
+
+    if (!amount || !unit) return null;
+
+    // Normalize to per kg or per L
+    if (unit === 'g' || unit === 'kg') {
+        const kg = unit === 'g' ? amount / 1000 : amount;
+        return { value: price / kg, unit: 'kg', display: `${(price / kg).toFixed(2)} €/kg` };
+    } else if (unit === 'ml' || unit === 'l') {
+        const l = unit === 'ml' ? amount / 1000 : amount;
+        return { value: price / l, unit: 'l', display: `${(price / l).toFixed(2)} €/L` };
+    }
+
+    return null;
+}
+
+function expandQueryWithSynonyms(query) {
+    const q = query.toLowerCase().trim();
+    const words = q.split(/\s+/);
+    const expanded = new Set([q]);
+
+    words.forEach(word => {
+        // Check if word is in synonym dict
+        for (const [key, synonyms] of Object.entries(SYNONYMS)) {
+            if (word === key || synonyms.includes(word)) {
+                expanded.add(key);
+                synonyms.forEach(syn => expanded.add(syn));
+            }
+        }
+    });
+
+    return Array.from(expanded);
+}
+
+function expandQueryWithCategories(query) {
+    const q = query.toLowerCase().trim();
+    const matches = [];
+
+    for (const [category, keywords] of Object.entries(CATEGORIES)) {
+        if (q === category) {
+            // User typed a category name - return all keywords in that category
+            return keywords;
+        }
+    }
+
+    return [q];
+}
+
+function multiTokenMatch(query, target) {
+    // Split query into tokens
+    const queryTokens = query.toLowerCase().trim().split(/\s+/).filter(Boolean);
+    const targetTokens = target.toLowerCase().trim().split(/\s+/).filter(Boolean);
+
+    if (queryTokens.length === 0) return 0;
+
+    // Calculate how many query tokens are found in target
+    let matchedTokens = 0;
+    queryTokens.forEach(qToken => {
+        const found = targetTokens.some(tToken => {
+            // Exact match or fuzzy match per token
+            if (tToken.includes(qToken)) return true;
+            const dist = levenshteinDistance(qToken, tToken);
+            const similarity = 1 - (dist / Math.max(qToken.length, tToken.length));
+            return similarity >= 0.7;
+        });
+        if (found) matchedTokens++;
+    });
+
+    return matchedTokens / queryTokens.length;
+}
+
+function brandBoost(query, target) {
+    // Check if query contains a brand name
+    const q = query.toLowerCase();
+    const t = target.toLowerCase();
+
+    for (const brand of BRANDS) {
+        if (q.includes(brand) && t.includes(brand)) {
+            return 0.2; // Boost score by 20%
+        }
+    }
+    return 0;
+}
+
+function fuzzyMatch(query, target, threshold = 0.6) {
+    // Normalize: lowercase, trim
+    const q = query.toLowerCase().trim();
+    const t = target.toLowerCase().trim();
+
+    // Exact substring match - highest score
+    if (t.includes(q)) return 1.0;
+
+    // Check if query is a single word and target contains it as a word
+    const qWords = q.split(/\s+/);
+    const tWords = t.split(/\s+/);
+
+    // Single word exact match bonus
+    if (qWords.length === 1 && tWords.some(w => w === q)) {
+        return 0.95;
+    }
+
+    // Multi-token match (for "griechischer jogurt" -> "Joghurt Griechisch")
+    const multiScore = multiTokenMatch(q, t);
+    if (multiScore >= 0.7) return multiScore;
+
+    // Levenshtein for fuzzy matching - but be stricter
+    const distance = levenshteinDistance(q, t);
+    const maxLen = Math.max(q.length, t.length);
+    const similarity = 1 - (distance / maxLen);
+
+    // Increase threshold to avoid false positives
+    return similarity >= Math.max(threshold, 0.7) ? similarity : 0;
+}
+
+function parseQuantity(quantityStr) {
+    // Parse "300g", "2L", "5x", "1.5kg" etc.
+    if (!quantityStr) return null;
+    const match = quantityStr.trim().match(/^([\d.,]+)\s*(g|kg|ml|l|x|stück|st)?$/i);
+    if (!match) return null;
+
+    let amount = parseFloat(match[1].replace(',', '.'));
+    let unit = (match[2] || 'x').toLowerCase();
+
+    // Normalize to base units (g, ml, x)
+    if (unit === 'kg') { amount *= 1000; unit = 'g'; }
+    if (unit === 'l') { amount *= 1000; unit = 'ml'; }
+    if (unit === 'stück' || unit === 'st') { unit = 'x'; }
+
+    return { amount, unit };
+}
+
+function extractProductQuantity(product) {
+    // Priority 1: Use size_amount and size_unit from DB if available
+    if (product.size_amount && product.size_unit) {
+        let amount = product.size_amount;
+        let unit = product.size_unit.toLowerCase();
+
+        // Normalize
+        if (unit === 'kg') { amount *= 1000; unit = 'g'; }
+        if (unit === 'l') { amount *= 1000; unit = 'ml'; }
+        if (unit === 'stück' || unit === 'st') { unit = 'x'; }
+
+        return { amount, unit };
+    }
+
+    // Priority 2: Extract from product name like "Joghurt 150g" or "Milch 1L"
+    const match = product.product_identifier.match(/([\d.,]+)\s*(g|kg|ml|l|stück|st)$/i);
+    if (!match) return null;
+
+    let amount = parseFloat(match[1].replace(',', '.'));
+    let unit = match[2].toLowerCase();
+
+    if (unit === 'kg') { amount *= 1000; unit = 'g'; }
+    if (unit === 'l') { amount *= 1000; unit = 'ml'; }
+    if (unit === 'stück' || unit === 'st') { unit = 'x'; }
+
+    return { amount, unit };
+}
+
+function calculateOptimalQuantity(needed, productQty) {
+    // Calculate how many units of productQty are needed to meet/exceed needed
+    if (!needed || !productQty) return null;
+    if (needed.unit !== productQty.unit) return null; // Units must match
+
+    const count = Math.ceil(needed.amount / productQty.amount);
+    const totalAmount = count * productQty.amount;
+
+    return { count, totalAmount, unit: needed.unit };
+}
+
+function addItem() {
+    const quantityInput = document.getElementById('quantity-input');
+    const itemInput = document.getElementById('item-input');
+
+    const quantityStr = quantityInput.value.trim();
+    const query = itemInput.value.trim();
+
+    if (!query) return;
+    if (!selectedStore) {
+        alert('Bitte wähle zuerst einen Laden aus!');
+        return;
+    }
+
+    const needed = parseQuantity(quantityStr);
+
+    // Create pending item (not added to list yet)
+    pendingItem = {
+        query,
+        needed,
+        matched: null,
+        matchScore: 0,
+        matchedSource: null,
+        calculation: null,
+        suggestions: []
+    };
+
+    quantityInput.value = '';
+    itemInput.value = '';
+
+    // Show pending selection UI and match products
+    showPendingSelection();
+}
+
+async function showPendingSelection() {
+    const container = document.getElementById('pending-selection');
+    const detailsDiv = document.getElementById('pending-item-details');
+    const suggestionsDiv = document.getElementById('pending-suggestions');
+
+    container.style.display = 'block';
+    container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+    // Show item details
+    let qtyDisplay = '';
+    if (pendingItem.needed) {
+        qtyDisplay = `<strong>${formatUnit(pendingItem.needed.amount, pendingItem.needed.unit)}</strong> `;
+    }
+    detailsDiv.innerHTML = `
+        <div style="font-size:18px;font-weight:600;color:#0369a1;">
+            ${qtyDisplay}${pendingItem.query}
+        </div>
+        <div style="font-size:13px;color:#64748b;margin-top:4px;">Suche passende Produkte...</div>
+    `;
+
+    // Match products (reuse existing logic)
+    await matchSingleItem(pendingItem);
+
+    // Show suggestions
+    renderPendingSuggestions();
+}
+
+async function matchSingleItem(item) {
+    // Reuse matchProducts logic for single item
+    const expandedQueries = [
+        item.query,
+        ...expandQueryWithSynonyms(item.query),
+        ...expandQueryWithCategories(item.query)
+    ];
+
+    const localProducts = allProducts.filter(p => p.store_name === selectedStore);
+    const scoredLocal = localProducts.map(p => {
+        const identifier = p.product_identifier || p.product_name || '';
+        let maxScore = 0;
+        expandedQueries.forEach(q => {
+            const score = fuzzyMatch(q, identifier, 0.6);
+            if (score > maxScore) maxScore = score;
+        });
+        const boost = brandBoost(item.query, identifier);
+        maxScore = Math.min(1.0, maxScore + boost + 0.15);
+        return { product: p, score: maxScore, source: 'local' };
+    }).filter(m => m.score > 0);
+
+    let candidates = [...scoredLocal];
+    const bestLocal = scoredLocal.length ? Math.max(...scoredLocal.map(s => s.score)) : 0;
+    const needOff = useLiveOFF && (scoredLocal.length === 0 || bestLocal < 0.75);
+
+    if (needOff) {
+        try {
+            const offProducts = await fetchOffProducts(item.query, 30);
+            const scoredOff = offProducts.map(p => {
+                const identifier = p.product_identifier || p.product_name || '';
+                let maxScore = 0;
+                expandedQueries.forEach(q => {
+                    const score = fuzzyMatch(q, identifier, 0.7);
+                    if (score > maxScore) maxScore = score;
+                });
+                const boost = brandBoost(item.query, identifier);
+                maxScore = Math.min(1.0, maxScore + boost);
+                let storeBoost = 0;
+                const storesStr = (p.stores || '').toString().toLowerCase();
+                if (storesStr && selectedStore && storesStr.includes(selectedStore.toLowerCase().split(' ')[0])) {
+                    storeBoost = 0.1;
+                }
+                return { product: p, score: maxScore + storeBoost, source: 'off' };
+            }).filter(m => m.score > 0.6);
+            candidates = candidates.concat(scoredOff);
+        } catch (e) {
+            console.error('OFF fetch failed:', e);
+        }
+    }
+
+    candidates.sort((a, b) => {
+        if (Math.abs(a.score - b.score) > 0.1) return b.score - a.score;
+        if (a.source !== b.source) return a.source === 'local' ? -1 : 1;
+        const aVerified = (a.product.status === 'verified') ? 1 : 0;
+        const bVerified = (b.product.status === 'verified') ? 1 : 0;
+        if (aVerified !== bVerified) return bVerified - aVerified;
+        const aVotes = (a.product.upvotes || 0) - (a.product.downvotes || 0);
+        const bVotes = (b.product.upvotes || 0) - (b.product.downvotes || 0);
+        return bVotes - aVotes;
+    });
+
+    const qualityCandidates = candidates.filter(c => c.score >= 0.65);
+    const deduped = deduplicateCandidates(qualityCandidates);
+
+    deduped.forEach(c => {
+        c.fairScore = computeFairScore(c.product, c.source);
+        c.combinedScore = (c.score * 0.6) + (c.fairScore * 0.4);
+    });
+
+    const sorted = [...deduped].sort((a, b) => b.combinedScore - a.combinedScore);
+    item.suggestions = sorted.slice(0, Math.max(3, Math.min(8, sorted.length)));
+
+    if (item.suggestions.length > 0) {
+        const bestSug = item.suggestions[0];
+        item.matched = bestSug.product;
+        item.matchScore = bestSug.score;
+        item.matchedSource = bestSug.source;
+
+        if (item.needed) {
+            const productQty = extractProductQuantity(item.matched);
+            if (productQty) {
+                item.calculation = calculateOptimalQuantity(item.needed, productQty);
+            }
+        }
+    }
+}
+
+function renderPendingSuggestions() {
+    const suggestionsDiv = document.getElementById('pending-suggestions');
+    const detailsDiv = document.getElementById('pending-item-details');
+
+    if (!pendingItem.suggestions || pendingItem.suggestions.length === 0) {
+        suggestionsDiv.innerHTML = '<div style="padding:20px;text-align:center;color:#ef4444;">❌ Keine passenden Produkte gefunden</div>';
+        detailsDiv.innerHTML = `
+            <div style="font-size:18px;font-weight:600;color:#ef4444;">
+                ${pendingItem.query}
+            </div>
+            <div style="font-size:13px;color:#ef4444;margin-top:4px;">Keine Produkte gefunden - probiere einen anderen Suchbegriff</div>
+        `;
+        return;
+    }
+
+    // Update details with matched product
+    let qtyDisplay = '';
+    if (pendingItem.needed && pendingItem.calculation) {
+        qtyDisplay = `<strong>Benötigt: ${formatUnit(pendingItem.needed.amount, pendingItem.needed.unit)}</strong> → Kaufe ${pendingItem.calculation.count}x`;
+    } else if (pendingItem.needed) {
+        qtyDisplay = `<strong>${formatUnit(pendingItem.needed.amount, pendingItem.needed.unit)}</strong>`;
+    }
+
+    detailsDiv.innerHTML = `
+        <div style="font-size:16px;font-weight:600;color:#0369a1;">
+            ${qtyDisplay ? qtyDisplay + ' ' : ''}${pendingItem.query}
+        </div>
+        <div style="font-size:13px;color:#22c55e;margin-top:4px;">✓ ${pendingItem.suggestions.length} Produkt(e) gefunden</div>
+    `;
+
+    // Show suggestions
+    suggestionsDiv.innerHTML = `
+        <div style="font-size:14px;color:#64748b;margin-bottom:8px;">
+            Wähle ein Produkt aus (beste Treffer zuerst):
+        </div>
+        ${pendingItem.suggestions.map((sug, idx) => renderPendingSuggestionRow(sug, idx)).join('')}
+    `;
+}
+
+function renderPendingSuggestionRow(sug, idx) {
+    const p = sug.product;
+    const isSelected = idx === 0; // First one is pre-selected
+    const source = sug.source === 'local' ? 'Lokal' : 'OFF';
+    const eco = (p.ecoscore || p.ecoscore_grade || '').toString().toUpperCase();
+    const nutri = (p.nutriscore || p.nutriscore_grade || '').toString().toUpperCase();
+    const ecoBadge = eco ? `<span style="background:#ecfeff;color:#0891b2;padding:2px 6px;border-radius:4px;font-size:11px;">Eco ${eco}</span>` : '';
+    const nutriBadge = nutri ? `<span style="background:#f0fdf4;color:#16a34a;padding:2px 6px;border-radius:4px;font-size:11px;">Nutri ${nutri}</span>` : '';
+
+    let ethicsBadge = '';
+    if (p.ethics_score != null) {
+        const ethicsScore = p.ethics_score;
+        let ethicsColor, ethicsLabel, ethicsTitle;
+        if (ethicsScore >= 0.75) {
+            ethicsColor = '#22c55e'; ethicsLabel = 'Fair ✓'; ethicsTitle = 'Gute ethische Bewertung';
+        } else if (ethicsScore >= 0.5) {
+            ethicsColor = '#f59e0b'; ethicsLabel = 'OK'; ethicsTitle = 'Neutrale ethische Bewertung';
+        } else {
+            ethicsColor = '#ef4444'; ethicsLabel = 'Kritisch'; ethicsTitle = 'Ethische Bedenken';
+        }
+        if (p.ethics_issues && p.ethics_issues.length > 0) {
+            ethicsTitle += ':\\n' + p.ethics_issues.join('\\n');
+        }
+        ethicsBadge = `<span style="background:${ethicsColor};color:white;padding:2px 6px;border-radius:4px;font-size:11px;cursor:help;" title="${ethicsTitle}">${ethicsLabel}</span>`;
+    }
+
+    const matchQuality = sug.score >= 0.9 ? '🟢' : sug.score >= 0.75 ? '🟡' : '🟠';
+
+    let priceDisplay = '';
+    if (p.current_price != null) {
+        priceDisplay = `${p.current_price.toFixed(2)} €`;
+    } else if (p.estimated_price != null) {
+        priceDisplay = `≈ ${p.estimated_price.toFixed(2)} €`;
+    }
+
+    const unitPrice = calculateUnitPrice(p);
+    if (unitPrice && priceDisplay) {
+        priceDisplay += ` <span style="color:#94a3b8;font-size:10px;">(${unitPrice.display})</span>`;
+    }
+
+    const qty = p.size_amount && p.size_unit ? ` • ${p.size_amount} ${p.size_unit}` : '';
+
+    let imageHtml = '';
+    if (p.image_url) {
+        imageHtml = `<img src="${p.image_url}" 
+            style="width:64px;height:64px;min-width:64px;border-radius:8px;object-fit:cover;border:2px solid #e5e7eb;" 
+            onerror="this.style.display='none'" 
+            loading="lazy"
+            alt="${p.product_name || 'Produktbild'}">`;
+    } else {
+        imageHtml = `<div style="width:64px;height:64px;min-width:64px;border-radius:8px;background:#f3f4f6;display:flex;align-items:center;justify-content:center;font-size:28px;">📦</div>`;
+    }
+
+    const borderColor = isSelected ? '#22c55e' : '#e5e7eb';
+    const bgColor = isSelected ? '#f0fdf4' : '#fff';
+
+    return `
+        <div onclick="window.selectPendingProduct(${idx})" 
+             style="display:flex;align-items:center;gap:12px;padding:12px;border:2px solid ${borderColor};border-radius:8px;margin-top:8px;background:${bgColor};cursor:pointer;transition:all 0.2s;"
+             onmouseover="this.style.borderColor='#0ea5e9'; this.style.background='#f0f9ff';"
+             onmouseout="this.style.borderColor='${borderColor}'; this.style.background='${bgColor}';">
+            ${imageHtml}
+            <div style="flex:1;min-width:0;">
+                <div style="font-weight:600;color:#0f172a;word-break:break-word;display:flex;align-items:center;gap:6px;">
+                    <span title="Match-Qualität">${matchQuality}</span>
+                    ${p.product_identifier || p.product_name || ''}
+                    ${isSelected ? '<span style="background:#22c55e;color:white;padding:2px 8px;border-radius:12px;font-size:11px;margin-left:8px;">✓ Ausgewählt</span>' : ''}
+                </div>
+                <div style="font-size:12px;color:#64748b;margin-top:4px;">
+                    ${source}${qty} ${priceDisplay ? `• ${priceDisplay}` : ''} ${ecoBadge} ${nutriBadge} ${ethicsBadge}
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+window.selectPendingProduct = function (idx) {
+    const sug = pendingItem.suggestions[idx];
+    if (!sug) return;
+
+    // Update matched product
+    pendingItem.matched = sug.product;
+    pendingItem.matchScore = sug.score;
+    pendingItem.matchedSource = sug.source;
+
+    // Recalculate quantity if needed
+    if (pendingItem.needed) {
+        const productQty = extractProductQuantity(sug.product);
+        if (productQty) {
+            pendingItem.calculation = calculateOptimalQuantity(pendingItem.needed, productQty);
+        }
+    }
+
+    // Re-render to show selection
+    renderPendingSuggestions();
+};
+
+window.confirmPendingItem = function () {
+    if (!pendingItem || !pendingItem.matched) {
+        alert('Bitte wähle ein Produkt aus!');
+        return;
+    }
+
+    // Add to shopping list
+    shoppingList.push({ ...pendingItem });
+
+    // Clear pending
+    pendingItem = null;
+    document.getElementById('pending-selection').style.display = 'none';
+
+    // Render list
+    renderList();
+};
+
+window.cancelPendingItem = function () {
+    pendingItem = null;
+    document.getElementById('pending-selection').style.display = 'none';
+};
+
+function removeItem(index) {
+    shoppingList.splice(index, 1);
+    renderList();
+}
+
+async function matchProducts() {
+    if (!selectedStore) return;
+
+    // Match each item query to products in selected store with fuzzy matching
+    for (const item of shoppingList) {
+        // Expand query with synonyms and categories
+        const expandedQueries = [
+            item.query,
+            ...expandQueryWithSynonyms(item.query),
+            ...expandQueryWithCategories(item.query)
+        ];
+
+        // Local store-specific products
+        const localProducts = allProducts.filter(p => p.store_name === selectedStore);
+
+        // Score local first
+        const scoredLocal = localProducts.map(p => {
+            const identifier = p.product_identifier || p.product_name || '';
+            let maxScore = 0;
+            expandedQueries.forEach(q => {
+                const score = fuzzyMatch(q, identifier, 0.6);
+                if (score > maxScore) maxScore = score;
+            });
+
+            // Apply brand boost if applicable
+            const boost = brandBoost(item.query, identifier);
+            maxScore = Math.min(1.0, maxScore + boost + 0.15); // slight preference for local
+
+            return {
+                product: p,
+                score: maxScore,
+                source: 'local'
+            };
+        }).filter(m => m.score > 0);
+
+        let candidates = [...scoredLocal];
+
+        // Decide if we need OFF fallback: if no local results or weak best match
+        const bestLocal = scoredLocal.length ? Math.max(...scoredLocal.map(s => s.score)) : 0;
+        const needOff = useLiveOFF && (scoredLocal.length === 0 || bestLocal < 0.75);
+
+        if (needOff) {
+            try {
+                const offProducts = await fetchOffProducts(item.query, 30);
+                const scoredOff = offProducts.map(p => {
+                    const identifier = p.product_identifier || p.product_name || '';
+                    let maxScore = 0;
+                    expandedQueries.forEach(q => {
+                        const score = fuzzyMatch(q, identifier, 0.7); // Stricter threshold for OFF
+                        if (score > maxScore) maxScore = score;
+                    });
+                    const boost = brandBoost(item.query, identifier);
+                    maxScore = Math.min(1.0, maxScore + boost);
+                    // Light store boost if the OFF 'stores' string mentions the chain
+                    let storeBoost = 0;
+                    const storesStr = (p.stores || '').toString().toLowerCase();
+                    if (storesStr && selectedStore && storesStr.includes(selectedStore.toLowerCase().split(' ')[0])) {
+                        storeBoost = 0.1;
+                    }
+                    return { product: p, score: maxScore + storeBoost, source: 'off' };
+                }).filter(m => m.score > 0.6); // Filter weak OFF matches
+                candidates = candidates.concat(scoredOff);
+            } catch (e) {
+                console.error('OFF fetch failed:', e);
+            }
+        }
+
+        // Sort combined candidates
+        candidates.sort((a, b) => {
+            if (Math.abs(a.score - b.score) > 0.1) return b.score - a.score;
+            // Prefer local over OFF on ties
+            if (a.source !== b.source) return a.source === 'local' ? -1 : 1;
+            const aVerified = (a.product.status === 'verified') ? 1 : 0;
+            const bVerified = (b.product.status === 'verified') ? 1 : 0;
+            if (aVerified !== bVerified) return bVerified - aVerified;
+            const aVotes = (a.product.upvotes || 0) - (a.product.downvotes || 0);
+            const bVotes = (b.product.upvotes || 0) - (b.product.downvotes || 0);
+            return bVotes - aVotes;
+        });
+
+        // Filter candidates by minimum match quality (threshold 0.65 for relevance)
+        const qualityCandidates = candidates.filter(c => c.score >= 0.65);
+
+        // Deduplicate by barcode or similar identifier
+        const deduped = deduplicateCandidates(qualityCandidates);
+
+        // Compute fairness score and prepare suggestions list
+        deduped.forEach(c => {
+            c.fairScore = computeFairScore(c.product, c.source);
+            // Combined score: 60% match quality, 40% fairness for better balance
+            c.combinedScore = (c.score * 0.6) + (c.fairScore * 0.4);
+        });
+
+        // Sort by combined score (relevance + fairness)
+        const sorted = [...deduped].sort((a, b) => b.combinedScore - a.combinedScore);
+
+        // Ensure at least 3 suggestions for the list (if available)
+        item.suggestions = sorted.slice(0, Math.max(3, Math.min(8, sorted.length))); if (candidates.length > 0) {
+            // Select fairest suggestion as default
+            const bestSug = item.suggestions[0];
+            const best = bestSug.product;
+            item.matched = best;
+            item.matchScore = bestSug.score;
+            item.matchedSource = bestSug.source; // 'local' or 'off'
+
+            // Calculate optimal quantity if needed quantity is specified
+            if (item.needed) {
+                const productQty = extractProductQuantity(best);  // Pass full product object
+                if (productQty) {
+                    item.calculation = calculateOptimalQuantity(item.needed, productQty);
+                } else {
+                    item.calculation = null;
+                }
+            } else {
+                item.calculation = null;
+            }
+        } else {
+            item.matched = null;
+            item.matchScore = 0;
+            item.calculation = null;
+            item.matchedSource = null;
+            item.suggestions = [];
+        }
+    }
+}
+
+function sortByStoreLayout() {
+    // Sort items by aisle (Gang) and shelf (Regal) for optimized route
+    shoppingList.sort((a, b) => {
+        const aMatched = a.matched;
+        const bMatched = b.matched;
+
+        // Unmatched items go to end
+        if (!aMatched && !bMatched) return 0;
+        if (!aMatched) return 1;
+        if (!bMatched) return -1;
+
+        // Extract numeric part from aisle (e.g., "Gang 3" -> 3)
+        const aAisle = parseInt((aMatched.aisle || '').match(/\d+/)?.[0] || '999');
+        const bAisle = parseInt((bMatched.aisle || '').match(/\d+/)?.[0] || '999');
+
+        if (aAisle !== bAisle) return aAisle - bAisle;
+
+        // If same aisle, sort by shelf
+        const aShelf = (aMatched.shelf_label || '').toLowerCase();
+        const bShelf = (bMatched.shelf_label || '').toLowerCase();
+        return aShelf.localeCompare(bShelf);
+    });
+}
+
+function formatUnit(amount, unit) {
+    if (unit === 'g' && amount >= 1000) {
+        return `${(amount / 1000).toFixed(2).replace('.', ',')} kg`;
+    }
+    if (unit === 'ml' && amount >= 1000) {
+        return `${(amount / 1000).toFixed(2).replace('.', ',')} L`;
+    }
+    return `${amount} ${unit}`;
+}
+
+async function renderList() {
+    // Show loading state while matching
+    const container = document.getElementById('list-container');
+    const countBadge = document.getElementById('item-count');
+    if (container) {
+        container.innerHTML = '<div class="empty-state"><p>🔎 Suche passende Produkte…</p></div>';
+    }
+
+    await matchProducts();
+    sortByStoreLayout();
+
+    countBadge.textContent = shoppingList.length;
+
+    if (shoppingList.length === 0) {
+        container.innerHTML = `
+            <div class="empty-state">
+                <p>📝 Deine Einkaufsliste ist leer.</p>
+                <p>Wähle einen Laden und füge Artikel hinzu!</p>
+            </div>
+        `;
+        renderTotalSummary();
+        return;
+    }
+
+    if (!selectedStore) {
+        container.innerHTML = `
+            <div class="empty-state">
+                <p>🏪 Bitte wähle zuerst einen Laden aus.</p>
+            </div>
+        `;
+        renderTotalSummary();
+        return;
+    }
+
+    container.innerHTML = shoppingList.map((item, i) => {
+        const matched = item.matched;
+        const matchedClass = matched ? 'matched' : '';
+
+        // Image
+        let imageHtml = '';
+        if (matched && matched.image_url) {
+            imageHtml = `<img src="${matched.image_url}" class="list-item-image" onerror="this.style.display='none'" alt="Produktbild" />`;
+        } else {
+            imageHtml = `<div class="list-item-image-placeholder">📦</div>`;
+        }
+
+        // Query display
+        let queryDisplay = item.query;
+        if (item.needed) {
+            queryDisplay = `${formatUnit(item.needed.amount, item.needed.unit)} ${item.query}`;
+        }
+
+        // Matched product name
+        let matchedDisplay = '';
+        if (matched) {
+            matchedDisplay = `<div class="item-matched">→ ${matched.product_identifier || matched.product_name || ''}</div>`;
+        }
+
+        // Location
+        let locationDisplay = '';
+        if (matched) {
+            const location = [matched.aisle, matched.shelf_label].filter(Boolean).join(', ');
+            locationDisplay = `<div class="item-location">📍 ${location || 'Standort unbekannt'}</div>`;
+        }
+
+        // Price display
+        let priceDisplay = '';
+        let calcDisplay = '';
+        if (matched && (matched.current_price || matched.estimated_price)) {
+            const unitPrice = matched.current_price || matched.estimated_price;
+            const totalPrice = item.calculation ? (unitPrice * item.calculation.count) : unitPrice;
+            const prefix = matched.current_price ? '' : '≈ ';
+            priceDisplay = `<div class="item-price">${prefix}${totalPrice.toFixed(2)} €</div>`;
+            
+            if (item.calculation && item.calculation.count > 1) {
+                calcDisplay = `<div class="item-calc">${item.calculation.count}x à ${unitPrice.toFixed(2)} €</div>`;
+            }
+        }
+
+        return `
+            <div class="list-item ${matchedClass}">
+                ${imageHtml}
+                <div class="item-text">
+                    <div class="item-query">${queryDisplay}</div>
+                    ${matchedDisplay}
+                    ${locationDisplay}
+                </div>
+                <div class="item-price-box">
+                    ${priceDisplay}
+                    ${calcDisplay}
+                </div>
+                <button class="item-remove" onclick="window.removeShoppingItem(${i})" title="Entfernen">🗑️</button>
+            </div>
+        `;
+    }).join('');
+    
+    // Calculate and show total
+    renderTotalSummary();
+}
+
+function renderTotalSummary() {
+    const totalContainer = document.getElementById('total-price-container');
+    if (!totalContainer) return;
+    
+    if (shoppingList.length === 0) {
+        totalContainer.innerHTML = '';
+        return;
+    }
+    
+    let totalPrice = 0;
+    let estimatedCount = 0;
+    let confirmedCount = 0;
+    
+    shoppingList.forEach(item => {
+        if (item.matched && (item.matched.current_price || item.matched.estimated_price)) {
+            const unitPrice = item.matched.current_price || item.matched.estimated_price;
+            const itemTotal = item.calculation ? (unitPrice * item.calculation.count) : unitPrice;
+            totalPrice += itemTotal;
+            
+            if (item.matched.current_price) {
+                confirmedCount++;
+            } else {
+                estimatedCount++;
+            }
+        }
+    });
+    
+    const hasEstimates = estimatedCount > 0;
+    const prefix = hasEstimates ? 'ca. ' : '';
+    const itemsText = `${shoppingList.length} Artikel`;
+    const priceNote = hasEstimates ? `(${confirmedCount} bestätigt, ${estimatedCount} geschätzt)` : '';
+    
+    totalContainer.innerHTML = `
+        <div class="total-summary">
+            <div>
+                <div class="total-label">Gesamtsumme</div>
+                <div class="total-items">${itemsText} ${priceNote}</div>
+            </div>
+            <div class="total-amount">${prefix}${totalPrice.toFixed(2)} €</div>
+        </div>
+    `;
+}
+
+// Enhanced rendering with prices if available (legacy support)
+if (typeof window.renderListWithPrices === 'function') {
+    // Override renderList to use enhanced version
+    const originalRenderList = renderList;
+    renderList = function () {
+        window.renderListWithPrices();
+    };
+}
+
+// UI interactions for suggestions & feedback
+window.toggleSuggestions = function (index) {
+        const matched = item.matched;
+        const matchedClass = matched ? 'matched' : '';
+
+        let queryDisplay = item.query;
+        if (item.needed) {
+            queryDisplay = `${formatUnit(item.needed.amount, item.needed.unit)} ${item.query}`;
+        }
+
+        let calcDisplay = '';
+        if (item.calculation) {
+            const calc = item.calculation;
+            calcDisplay = `<div class="item-calc">💡 Kaufe ${calc.count}x → Gesamt: ${formatUnit(calc.totalAmount, calc.unit)}</div>`;
+        }
+
+        let details = '';
+        if (matched) {
+            const location = [matched.aisle, matched.shelf_label].filter(Boolean).join(', ');
+
+            // Price display with unit price
+            let priceInfo = '';
+            if (matched.current_price || matched.estimated_price) {
+                const price = matched.current_price || matched.estimated_price;
+                const prefix = matched.current_price ? '' : '≈ ';
+                const unitPrice = calculateUnitPrice(matched);
+                const unitPriceStr = unitPrice ? ` <span style="color:#94a3b8;">(${prefix}${unitPrice.display})</span>` : '';
+                priceInfo = `<span style="margin-left:8px;color:#16a34a;font-weight:600;">💰 ${prefix}${price.toFixed(2)} €${unitPriceStr}</span>`;
+            }
+
+            details = `
+                <div class="item-details">
+                    <span class="item-location">📍 ${location || 'Standort unbekannt'}</span>
+                    ${priceInfo}
+                    ${matched.photo_url ? `<a href="${matched.photo_url}" target="_blank" style="margin-left:8px;color:#0ea5e9;">🖼️ Foto</a>` : ''}
+                    <span style="margin-left:8px;color:#64748b;">👍 ${matched.upvotes || 0} | 👎 ${matched.downvotes || 0}</span>
+                    ${matched.status === 'verified' ? '<span style="margin-left:8px;color:#22c55e;">✅ Verifiziert</span>' : ''}
+                </div>
+                <div style="margin-top:8px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                    <button style="padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;cursor:pointer;background:#f0fdf4;" onclick="window.sendFeedback(${i}, true)">Gab's im Laden 👍</button>
+                    <button style="padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;cursor:pointer;background:#fef2f2;" onclick="window.sendFeedback(${i}, false)">Gab's nicht 👎</button>
+                    <button style="padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;cursor:pointer;" onclick="window.toggleFeedbackDetails(${i})">Details ergänzen</button>
+                </div>
+                <div id="fb-${i}" style="display:none;margin-top:8px;">
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                        <input id="fb-aisle-${i}" placeholder="Gang (z.B. Gang 3)" style="padding:6px;border:1px solid #e5e7eb;border-radius:6px;" />
+                        <input id="fb-shelf-${i}" placeholder="Regal (z.B. Regal A)" style="padding:6px;border:1px solid #e5e7eb;border-radius:6px;" />
+                        <input id="fb-photo-${i}" placeholder="Foto-URL (optional)" style="padding:6px;border:1px solid #e5e7eb;border-radius:6px;min-width:280px;" />
+                        <button style="padding:6px 10px;background:#0ea5e9;color:white;border:none;border-radius:6px;cursor:pointer;" onclick="window.submitFeedbackDetails(${i})">Speichern</button>
+                    </div>
+                </div>
+            `;
+        } else {
+            details = `<div class="item-details" style="color:#ef4444;">❌ Kein Produkt für "${item.query}" in diesem Laden gefunden.</div>`;
+        }
+
+        // Build suggestions UI (min 3 if available, collapsible)
+        const suggestions = Array.isArray(item.suggestions) ? item.suggestions : [];
+        const shown = suggestions.slice(0, 3);
+        const hidden = suggestions.slice(3);
+
+        const suggestionRow = (sug, sidx) => {
+            const p = sug.product;
+            const source = sug.source === 'local' ? 'Lokal' : 'OFF';
+            const eco = (p.ecoscore || p.ecoscore_grade || '').toString().toUpperCase();
+            const nutri = (p.nutriscore || p.nutriscore_grade || '').toString().toUpperCase();
+            const ecoBadge = eco ? `<span style="background:#ecfeff;color:#0891b2;padding:2px 6px;border-radius:4px;font-size:12px;">Eco ${eco}</span>` : '';
+            const nutriBadge = nutri ? `<span style="background:#f0fdf4;color:#16a34a;padding:2px 6px;border-radius:4px;font-size:12px;">Nutri ${nutri}</span>` : '';
+
+            // Ethics badge with color coding
+            let ethicsBadge = '';
+            if (p.ethics_score != null) {
+                const ethicsScore = p.ethics_score;
+                let ethicsColor, ethicsLabel, ethicsTitle;
+                if (ethicsScore >= 0.75) {
+                    ethicsColor = '#22c55e'; ethicsLabel = 'Fair ✓'; ethicsTitle = 'Gute ethische Bewertung';
+                } else if (ethicsScore >= 0.5) {
+                    ethicsColor = '#f59e0b'; ethicsLabel = 'OK'; ethicsTitle = 'Neutrale ethische Bewertung';
+                } else {
+                    ethicsColor = '#ef4444'; ethicsLabel = 'Kritisch'; ethicsTitle = 'Ethische Bedenken';
+                }
+                if (p.ethics_issues && p.ethics_issues.length > 0) {
+                    ethicsTitle += ':\\n' + p.ethics_issues.join('\\n');
+                }
+                ethicsBadge = `<span style="background:${ethicsColor};color:white;padding:2px 6px;border-radius:4px;font-size:12px;cursor:help;" title="${ethicsTitle}">${ethicsLabel}</span>`;
+            }
+
+            // Quality indicator
+            const matchQuality = sug.score >= 0.9 ? '🟢' : sug.score >= 0.75 ? '🟡' : '🟠';
+            const qualityHint = `Relevanz: ${(sug.score * 100).toFixed(0)}%, Fairness: ${(sug.fairScore * 100).toFixed(0)}%`;
+
+            // Price display with unit price
+            let priceDisplay = '';
+            if (p.current_price != null) {
+                priceDisplay = `${p.current_price.toFixed(2)} €`;
+            } else if (p.estimated_price != null) {
+                priceDisplay = `≈ ${p.estimated_price.toFixed(2)} €`;
+            }
+
+            // Calculate and show per-unit price
+            const unitPrice = calculateUnitPrice(p);
+            if (unitPrice && priceDisplay) {
+                priceDisplay += ` <span style="color:#94a3b8;font-size:11px;">(${unitPrice.display})</span>`;
+            }
+
+            const qty = p.size_amount && p.size_unit ? ` • ${p.size_amount} ${p.size_unit}` : '';
+
+            // Image with fallback and error handling
+            let imageHtml = '';
+            if (p.image_url) {
+                imageHtml = `<img src="${p.image_url}" 
+                    style="width:56px;height:56px;min-width:56px;border-radius:6px;object-fit:cover;border:1px solid #e5e7eb;" 
+                    onerror="this.style.display='none'" 
+                    loading="lazy"
+                    alt="${p.product_name || 'Produktbild'}">`;
+            } else {
+                imageHtml = `<div style="width:56px;height:56px;min-width:56px;border-radius:6px;background:#f3f4f6;display:flex;align-items:center;justify-content:center;font-size:24px;">📦</div>`;
+            }
+
+            return `
+                <div style="display:flex;align-items:center;gap:12px;padding:8px;border:1px solid #e5e7eb;border-radius:8px;margin-top:6px;background:#fff;">
+                    ${imageHtml}
+                    <div style="flex:1;min-width:0;">
+                        <div style="font-weight:600;color:#0f172a;word-break:break-word;">
+                            <span title="${qualityHint}">${matchQuality}</span> ${p.product_identifier || p.product_name || ''}
+                        </div>
+                        <div style="font-size:12px;color:#64748b;margin-top:2px;">${source}${qty} ${priceDisplay ? `• ${priceDisplay}` : ''} ${ecoBadge} ${nutriBadge} ${ethicsBadge}</div>
+                    </div>
+                    <button style="padding:6px 10px;background:#0ea5e9;color:white;border:none;border-radius:6px;cursor:pointer;" onclick="window.selectSuggestion(${i}, ${sidx})">Auswählen</button>
+                </div>
+            `;
+        };
+
+        const suggestionsHtml = suggestions.length ? `
+            <div style="margin-top:8px;">
+                <div style="font-size:13px;color:#64748b;margin-bottom:4px;">
+                    Alternativen (beste Treffer):
+                    <span style="font-size:11px;color:#94a3b8;margin-left:4px;" title="Sortiert nach Relevanz (60%) und Fairness aus Eco/Ethik/Nutri (40%)">ℹ️ Sortierung</span>
+                </div>
+                ${shown.map((s, si) => suggestionRow(s, si)).join('')}
+                ${hidden.length ? `<div id="more-${i}" style="display:none;">${hidden.map((s, si) => suggestionRow(s, si + 3)).join('')}</div>` : ''}
+                ${hidden.length ? `<button id="toggle-${i}" style="margin-top:6px;padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;background:white;cursor:pointer;" onclick="window.toggleSuggestions(${i})">Alle anzeigen (+${hidden.length})</button>` : ''}
+            </div>
+        ` : '';
+
+        return `
+            <div class="list-item ${matchedClass}">
+// UI interactions for suggestions & feedback
+window.toggleSuggestions = function (index) {
+    const el = document.getElementById(`more-${index}`);
+    const btn = document.getElementById(`toggle-${index}`);
+    if (!el || !btn) return;
+    const isHidden = el.style.display === 'none';
+    el.style.display = isHidden ? 'block' : 'none';
+    btn.textContent = isHidden ? 'Weniger anzeigen' : `Alle anzeigen (+${(shoppingList[index].suggestions || []).slice(3).length})`;
+};
+
+async function persistOffSelectionToDB(product, storeName) {
+    const payload = {
+        product_identifier: product.product_identifier || product.product_name,
+        store_name: storeName,
+        size_amount: product.size_amount,
+        size_unit: product.size_unit,
+        image_url: product.image_url,
+        current_price: product.current_price,
+        price_currency: product.price_currency,
+        price_history: product.price_history
+    };
+    const res = await fetch('/api/v1/product_locations/from_off', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+    });
+    if (!res.ok) throw new Error('Persist selection failed');
+    return await res.json();
+}
+
+window.selectSuggestion = async function (itemIndex, suggestionIndex) {
+    const item = shoppingList[itemIndex];
+    const sug = (item.suggestions || [])[suggestionIndex];
+    if (!sug) return;
+    try {
+        if (sug.source === 'off') {
+            const saved = await persistOffSelectionToDB(sug.product, selectedStore);
+            // Add to local products cache so future matches see it as local
+            allProducts.push(saved);
+            item.matched = saved;
+            item.matchedSource = 'local';
+        } else {
+            item.matched = sug.product;
+            item.matchedSource = 'local';
+        }
+        // Recalculate quantity
+        if (item.needed) {
+            const productQty = extractProductQuantity(item.matched);
+            item.calculation = productQty ? calculateOptimalQuantity(item.needed, productQty) : null;
+        }
+        renderList();
+    } catch (e) {
+        alert('Konnte Auswahl nicht speichern.');
+        console.error(e);
+    }
+};
+
+window.toggleFeedbackDetails = function (index) {
+    const el = document.getElementById(`fb-${index}`);
+    if (!el) return;
+    el.style.display = el.style.display === 'none' ? 'block' : 'none';
+};
+
+window.sendFeedback = async function (index, found) {
+    const item = shoppingList[index];
+    const m = item && item.matched;
+    if (!m || !m.id) {
+        // If matched from OFF but not persisted yet, persist first
+        if (item.matchedSource === 'off') {
+            try {
+                const saved = await persistOffSelectionToDB(m, selectedStore);
+                allProducts.push(saved);
+                item.matched = saved;
+            } catch (e) {
+                console.error(e);
+                alert('Bitte zuerst ein Produkt auswählen.');
+                return;
+            }
+        } else {
+            alert('Bitte zuerst ein Produkt auswählen.');
+            return;
+        }
+    }
+    try {
+        const res = await fetch(`/api/v1/product_locations/${item.matched.id}/feedback`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ found })
+        });
+        if (res.ok) {
+            const upd = await res.json();
+            item.matched.upvotes = upd.upvotes;
+            item.matched.downvotes = upd.downvotes;
+            renderList();
+        }
+    } catch (e) {
+        console.error(e);
+    }
+};
+
+window.submitFeedbackDetails = async function (index) {
+    const item = shoppingList[index];
+    const m = item && item.matched;
+    if (!m || !m.id) { alert('Bitte zuerst ein Produkt auswählen.'); return; }
+    const aisle = document.getElementById(`fb-aisle-${index}`)?.value || undefined;
+    const shelf = document.getElementById(`fb-shelf-${index}`)?.value || undefined;
+    const photo = document.getElementById(`fb-photo-${index}`)?.value || undefined;
+    const payload = { found: true };
+    if (aisle) payload.aisle = aisle;
+    if (shelf) payload.shelf_label = shelf;
+    if (photo) payload.photo_url = photo;
+    try {
+        const res = await fetch(`/api/v1/product_locations/${m.id}/feedback`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+        });
+        if (res.ok) {
+            const upd = await res.json();
+            item.matched.aisle = upd.aisle;
+            item.matched.shelf_label = upd.shelf_label;
+            item.matched.photo_url = upd.photo_url;
+            item.matched.upvotes = upd.upvotes;
+            item.matched.downvotes = upd.downvotes;
+            renderList();
+        }
+    } catch (e) {
+        console.error(e);
+    }
+};
+
+// Expose remove function globally for inline onclick
+window.removeShoppingItem = removeItem;
