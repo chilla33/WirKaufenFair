@@ -280,6 +280,16 @@ app.include_router(off_router)
 # Include Ratings & Price Reports routes
 app.include_router(rating_router)
 
+# Include Store routes
+from .store_routes import router as store_router
+from . import store_models
+store_models.Base = getattr(store_models, 'Base', None)
+try:
+    store_models.Base.metadata.create_all(bind=engine)
+except Exception:
+    pass
+app.include_router(store_router)
+
 # Create a ProductLocation from Open Food Facts product payload
 @app.post('/api/v1/product_locations/from_off', response_model=product_schemas.ProductLocation)
 def create_product_from_off(payload: dict = Body(...), db: Session = Depends(get_db)):

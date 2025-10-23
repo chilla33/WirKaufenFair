@@ -5,8 +5,12 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Einkaufsliste — WirKaufenFair</title>
-    <link rel="stylesheet" href="/style.css">
-    <link rel="manifest" href="/static/manifest.webmanifest">
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="icon" href="/assets/favicon_io/favicon.ico" type="image/x-icon">
+    <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon_io/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon_io/favicon-16x16.png">
+    <link rel="apple-touch-icon" href="/assets/favicon_io/apple-touch-icon.png">
+    <link rel="manifest" href="/assets/favicon_io/site.webmanifest">
     <meta name="theme-color" content="#0ea5e9">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
@@ -22,6 +26,19 @@
         @media (max-width: 1024px) {
             .container {
                 grid-template-columns: 1fr;
+            }
+        }
+
+        /* Location Banner Mobile Responsive */
+        @media (max-width: 640px) {
+            #location-banner>div {
+                flex-direction: column;
+                gap: 12px;
+                text-align: center;
+            }
+
+            #location-banner button {
+                width: 100%;
             }
         }
 
@@ -384,12 +401,42 @@
                 Einkaufsliste</a>
             <a href="/static/produktvorschlaege.html">Vorschläge</a>
             <a href="/static/suggest_location.html">Melden</a>
+            <a href="/static/hilfe.html" title="Hilfe & Anleitung">❓ Hilfe</a>
             <a href="/admin">Admin</a>
+            <button id="theme-toggle" onclick="toggleTheme()"
+                style="background:var(--card);border:1px solid var(--border);color:var(--text);padding:8px 12px;border-radius:6px;cursor:pointer;font-size:18px;"
+                title="Design umschalten">
+                🌙
+            </button>
         </nav>
     </header>
 
     <div class="container">
         <div class="main-column">
+            <!-- Location Permission Banner -->
+            <div id="location-banner" class="card"
+                style="display:none; background: linear-gradient(135deg, #0ea5e9 0%, #06b6d4 100%); color: white; border: none; margin-bottom: 20px;">
+                <div style="display:flex; align-items:center; gap:16px;">
+                    <div style="font-size:48px;">📍</div>
+                    <div style="flex:1;">
+                        <h3 style="margin:0 0 8px 0; color:white;">Ortungsdienste aktivieren?</h3>
+                        <p style="margin:0; opacity:0.95; font-size:14px;">
+                            Wir zeigen dir die <strong>nächstgelegenen Läden zuerst</strong> und sortieren deine
+                            Einkaufsliste nach Entfernung.
+                            Deine Position wird <strong>nicht gespeichert</strong> und dient nur zur Sortierung.
+                        </p>
+                    </div>
+                    <button onclick="requestLocation()"
+                        style="padding:12px 24px; background:white; color:#0ea5e9; border:none; border-radius:8px; font-weight:700; cursor:pointer; white-space:nowrap;">
+                        Erlauben
+                    </button>
+                    <button onclick="dismissLocationBanner()"
+                        style="padding:12px 16px; background:rgba(255,255,255,0.2); color:white; border:none; border-radius:8px; cursor:pointer;">
+                        ✕
+                    </button>
+                </div>
+            </div>
+
             <h1>🛒 Intelligente Einkaufsliste</h1>
             <p style="color:#64748b;margin-bottom:24px;">Wähle deinen Laden, füge Artikel mit Menge hinzu und erhalte
                 passende Produktvorschläge – mit Preis, optimiert sortiert nach Gang und Regal.</p>
@@ -397,9 +444,74 @@
             <div class="card">
                 <label for="store-select" style="display:block;font-weight:600;margin-bottom:8px;">🏪 In welchem Laden
                     kaufst du ein?</label>
-                <select id="store-select" class="store-select">
-                    <option value="">Laden auswählen...</option>
-                </select>
+                <!-- <select id="store-select" style="width:100%;margin:8px 0 0 0;padding:10px;border-radius:6px;border:1px solid #e5e7eb;font-size:16px;"></select> -->
+                <div id="custom-store-dropdown" class="custom-dropdown"
+                    style="width:100%;margin:8px 0 0 0;position:relative;">
+                    <input id="store-search-input" type="text" placeholder="Laden suchen (Name eingeben)" style="width:100%;padding:8px;border-radius:6px;border:1px solid #e5e7eb;margin-bottom:8px;">
+                    <div id="store-selected-label"
+                        style="width:100%;padding:10px;border-radius:6px;border:1px solid #e5e7eb;font-size:16px;background:#fff;cursor:pointer;user-select:none;">
+                        Laden auswählen...</div>
+                </div>
+                <style>
+                    .custom-dropdown-list {
+                        background: #fff;
+                        border: 1px solid #e5e7eb;
+                        border-radius: 6px;
+                        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+                        max-height: 340px;
+                        overflow-y: auto;
+                        position: absolute;
+                        width: 100%;
+                        z-index: 30;
+                    }
+
+                    .dropdown-group {
+                        margin: 0;
+                        padding: 0;
+                    }
+
+                    .dropdown-group-header {
+                        font-weight: bold;
+                        background: #f3f4f6;
+                        padding: 8px 12px;
+                        cursor: pointer;
+                        border-bottom: 1px solid #e5e7eb;
+                        user-select: none;
+                    }
+
+                    .dropdown-group-list {
+                        padding-left: 0;
+                        margin: 0;
+                    }
+
+                    .dropdown-item {
+                        padding: 8px 12px;
+                        cursor: pointer;
+                        border-bottom: 1px solid #f1f5f9;
+                        background: #fff;
+                        transition: background 0.15s;
+                    }
+
+                    .dropdown-item:hover {
+                        background: #e0f2fe;
+                    }
+
+                    .dropdown-fav {
+                        color: #f59e42;
+                    }
+
+                    .dropdown-selected {
+                        background: #bae6fd !important;
+                    }
+
+                    .dropdown-brand-header {
+                        font-weight: 500;
+                        background: #fef9c3;
+                        padding: 6px 16px;
+                        font-size: 14px;
+                        border-bottom: 1px solid #fef08a;
+                    }
+                </style>
             </div>
 
             <div class="card">
@@ -408,6 +520,7 @@
                     <input id="quantity-input" type="text" placeholder="300g, 2L, 5x" />
                     <input id="item-input" type="text" placeholder="z.B. Joghurt, Milch, Brot..." autocomplete="off" />
                     <button id="add-btn">Hinzufügen</button>
+                    <!-- Autocomplete will only show fair/organic products by default -->
                     <div id="item-autocomplete" class="autocomplete"></div>
                 </div>
                 <div class="hint">💡 Tipp: Gib Menge + Produkt ein (z.B. "300g Joghurt" oder "2L Milch"). Die App
@@ -450,6 +563,14 @@
                     </div>
                 </div>
                 <div id="total-price-container"></div>
+
+                <!-- Preis-Disclaimer -->
+                <div
+                    style="margin-top:16px;padding:12px;background:#fef3c7;border:1px solid #fbbf24;border-radius:8px;font-size:13px;color:#92400e;">
+                    <strong>⚠️ Preise ohne Gewähr:</strong> Alle Preise sind Community-Beiträge und können abweichen.
+                    Bitte prüfe den Preis im Geschäft. <a href="/static/impressum.html"
+                        style="color:#92400e;text-decoration:underline;">Mehr Infos</a>
+                </div>
             </div>
         </div>
 
@@ -461,9 +582,41 @@
                         <p>Füge Artikel hinzu um deine optimale Route zu sehen!</p>
                     </div>
                 </div>
+                <div id="store-detail" class="card" style="margin-top:12px;display:none;">
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <h4 id="detail-title" style="margin:0 0 8px 0;flex:1;">Laden Details</h4>
+                        <button id="fav-btn" title="Als Favorit markieren"
+                            style="background:none;border:none;cursor:pointer;font-size:22px;line-height:1;outline:none;color:#f59e42;margin-left:4px;transition:color 0.2s;"
+                            tabindex="0" onmouseover="this.style.color='#d97706'"
+                            onmouseout="this.style.color='#f59e42'">☆</button>
+                    </div>
+                    <div id="detail-content" style="font-size:13px;color:#334155;"></div>
+                    <div style="margin-top:12px;text-align:right;"><a id="detail-osm-link" href="#"
+                            target="_blank">Bearbeite in OpenStreetMap</a></div>
+                </div>
             </div>
         </div>
     </div>
+
+    <!-- Footer with Impressum -->
+    <footer style="background:var(--card);border-top:1px solid var(--border);padding:24px;margin-top:48px;">
+        <div
+            style="max-width:1200px;margin:0 auto;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px;">
+            <div style="color:var(--text-muted);font-size:14px;">
+                © 2025 WirKaufenFair – Gemeinsam fair einkaufen
+            </div>
+            <div style="display:flex;gap:20px;font-size:14px;">
+                <a href="/static/impressum.html" style="color:var(--text);text-decoration:none;font-weight:500;">📄
+                    Impressum</a>
+                <a href="/static/datenschutz.html" style="color:var(--text);text-decoration:none;font-weight:500;">🔒
+                    Datenschutz</a>
+                <a href="/static/hilfe.html" style="color:var(--text);text-decoration:none;font-weight:500;">❓
+                    Hilfe</a>
+                <a href="mailto:kontakt@wirkaufenfair.de"
+                    style="color:var(--text);text-decoration:none;font-weight:500;">✉️ Kontakt</a>
+            </div>
+        </div>
+    </footer>
 
     <!-- Price History Modal -->
     <div id="price-modal" class="modal">
@@ -476,8 +629,54 @@
         </div>
     </div>
 
-    <script src="/assets/shopping_list_v2.js"></script>
-    <script src="/assets/shopping_list_enhanced.js"></script>
+
+    <script type="module" src="/assets/main.js"></script>
+    <script type="module" src="/assets/modules/price-history.js"></script>
+    <script src="/assets/price_verification_dialog.js"></script>
+
+    <!-- Dark Mode Toggle Script -->
+    <script>
+        // Load saved theme preference or use system preference
+        function initTheme() {
+            const savedTheme = localStorage.getItem('theme');
+            if (savedTheme) {
+                document.documentElement.setAttribute('data-theme', savedTheme);
+                updateThemeIcon(savedTheme);
+            } else {
+                // Use system preference
+                const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                updateThemeIcon(prefersDark ? 'dark' : 'light');
+            }
+        }
+
+        function toggleTheme() {
+            const current = document.documentElement.getAttribute('data-theme');
+            const newTheme = current === 'dark' ? 'light' : 'dark';
+
+            document.documentElement.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            updateThemeIcon(newTheme);
+        }
+
+        function updateThemeIcon(theme) {
+            const btn = document.getElementById('theme-toggle');
+            if (btn) {
+                btn.textContent = theme === 'dark' ? '☀️' : '🌙';
+                btn.title = theme === 'dark' ? 'Heller Modus' : 'Dunkler Modus';
+            }
+        }
+
+        // Listen to system theme changes
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+            if (!localStorage.getItem('theme')) {
+                updateThemeIcon(e.matches ? 'dark' : 'light');
+            }
+        });
+
+        // Initialize on load
+        initTheme();
+    </script>
+
     <script>
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('/static/assets/sw.js').catch(() => { });

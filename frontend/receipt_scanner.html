@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="de">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kassenbon-Scanner — WirkaufenFair</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background: #f8fafc;
+            padding: 24px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .card {
+            background: white;
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            margin-bottom: 24px;
+        }
+
+        h1 {
+            color: #0f172a;
+            margin-bottom: 16px;
+        }
+
+        h2 {
+            color: #1e293b;
+            font-size: 18px;
+            margin-top: 24px;
+            margin-bottom: 12px;
+        }
+
+        p {
+            color: #475569;
+            line-height: 1.6;
+            margin-bottom: 12px;
+        }
+
+        .upload-zone {
+            border: 2px dashed #cbd5e1;
+            border-radius: 12px;
+            padding: 48px;
+            text-align: center;
+            cursor: pointer;
+            background: #f8fafc;
+            transition: all 0.2s;
+        }
+
+        .upload-zone:hover {
+            border-color: #0ea5e9;
+            background: #f0f9ff;
+        }
+
+        .upload-zone.active {
+            border-color: #22c55e;
+            background: #f0fdf4;
+        }
+
+        #preview {
+            max-width: 100%;
+            border-radius: 8px;
+            margin: 16px 0;
+            display: none;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        .btn-primary {
+            background: #0ea5e9;
+            color: white;
+        }
+
+        .btn-secondary {
+            background: #94a3b8;
+            color: white;
+            margin-left: 8px;
+        }
+
+        #results {
+            margin-top: 24px;
+        }
+
+        .result-item {
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .result-item.verified {
+            background: #f0fdf4;
+            border-color: #22c55e;
+        }
+
+        .result-name {
+            font-weight: 600;
+            color: #0f172a;
+        }
+
+        .result-price {
+            font-size: 18px;
+            font-weight: 700;
+            color: #0ea5e9;
+        }
+
+        .result-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .spinner {
+            border: 3px solid #f3f4f6;
+            border-top: 3px solid #0ea5e9;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 24px auto;
+            display: none;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .info-box {
+            background: #fef3c7;
+            border: 1px solid #fbbf24;
+            border-radius: 8px;
+            padding: 16px;
+            margin: 16px 0;
+        }
+
+        .info-box strong {
+            color: #92400e;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="card">
+            <h1>📸 Kassenbon-Scanner (Beta)</h1>
+            <p>Lade ein Foto deines Kassenbons hoch und wir extrahieren automatisch Produkte und Preise!</p>
+
+            <div class="info-box">
+                <strong>💡 Tipp:</strong> Mach ein klares Foto ohne Schatten. Achte darauf, dass der Bon gut lesbar ist.
+            </div>
+
+            <div class="upload-zone" id="upload-zone" onclick="document.getElementById('file-input').click()">
+                <div style="font-size: 48px; margin-bottom: 16px;">📷</div>
+                <p style="font-weight: 600; color: #0f172a;">Klicke hier oder ziehe ein Foto hinein</p>
+                <p style="font-size: 14px; color: #64748b;">JPG, PNG, WEBP bis 5 MB</p>
+            </div>
+
+            <input type="file" id="file-input" accept="image/*" style="display: none;"
+                onchange="handleFileSelect(event)">
+            <img id="preview" alt="Vorschau">
+
+            <div style="margin-top: 16px; display: none;" id="actions">
+                <button class="btn btn-primary" onclick="startOCR()">🔍 Kassenbon scannen</button>
+                <button class="btn btn-secondary" onclick="reset()">↻ Neu</button>
+            </div>
+
+            <div class="spinner" id="spinner"></div>
+
+            <div id="results"></div>
+        </div>
+
+        <div class="card">
+            <h2>🛠️ Wie funktioniert's?</h2>
+            <p><strong>1. Foto hochladen:</strong> Mach ein Foto deines Kassenbons (oder Screenshot)</p>
+            <p><strong>2. OCR-Scan:</strong> Wir nutzen Tesseract.js um Text zu erkennen</p>
+            <p><strong>3. KI-Parsing:</strong> Produkte und Preise werden automatisch zugeordnet</p>
+            <p><strong>4. Verifizieren:</strong> Du kannst die Ergebnisse prüfen und speichern</p>
+
+            <h2>⚠️ Beta-Hinweise</h2>
+            <p>• OCR ist nicht 100% genau - bitte Ergebnisse prüfen</p>
+            <p>• Funktioniert am besten mit klaren, gut beleuchteten Fotos</p>
+            <p>• Aktuell nur für deutsche Kassenbons optimiert</p>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
+    <script>
+        let uploadedFile = null;
+        let store = '';
+
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            uploadedFile = file;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const preview = document.getElementById('preview');
+                preview.src = e.target.result;
+                preview.style.display = 'block';
+                document.getElementById('actions').style.display = 'block';
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // Drag & Drop
+        const zone = document.getElementById('upload-zone');
+        zone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            zone.classList.add('active');
+        });
+        zone.addEventListener('dragleave', () => zone.classList.remove('active'));
+        zone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            zone.classList.remove('active');
+            const file = e.dataTransfer.files[0];
+            if (file && file.type.startsWith('image/')) {
+                document.getElementById('file-input').files = e.dataTransfer.files;
+                handleFileSelect({ target: { files: [file] } });
+            }
+        });
+
+        async function startOCR() {
+            if (!uploadedFile) return;
+
+            document.getElementById('spinner').style.display = 'block';
+            document.getElementById('results').innerHTML = '';
+
+            try {
+                // Erkenne Laden aus Kassenbon
+                const storeDetect = await Tesseract.recognize(uploadedFile, 'deu', {
+                    logger: m => console.log(m)
+                });
+
+                const text = storeDetect.data.text;
+                store = detectStore(text);
+
+                // Parse Produkte und Preise
+                const items = parseReceipt(text);
+
+                document.getElementById('spinner').style.display = 'none';
+                displayResults(items);
+
+            } catch (error) {
+                console.error('OCR Error:', error);
+                document.getElementById('spinner').style.display = 'none';
+                alert('Fehler beim Scannen. Bitte versuche es mit einem anderen Foto.');
+            }
+        }
+
+        function detectStore(text) {
+            const stores = ['REWE', 'EDEKA', 'ALDI', 'LIDL', 'PENNY', 'NETTO', 'KAUFLAND'];
+            for (const s of stores) {
+                if (text.toUpperCase().includes(s)) {
+                    return s;
+                }
+            }
+            return 'Unbekannt';
+        }
+
+        function parseReceipt(text) {
+            const lines = text.split('\n');
+            const items = [];
+
+            // Simple Regex: Zeile mit Preis am Ende (z.B. "Milch 1L 1,99")
+            const pricePattern = /(.+?)\s+(\d+[.,]\d{2})\s*€?$/;
+
+            lines.forEach(line => {
+                const match = line.match(pricePattern);
+                if (match) {
+                    const name = match[1].trim();
+                    const price = parseFloat(match[2].replace(',', '.'));
+
+                    // Filter offensichtliche Nicht-Produkte
+                    if (!name.match(/summe|gesamt|bar|karte|steuer|mwst/i) && price > 0 && price < 50) {
+                        items.push({ name, price });
+                    }
+                }
+            });
+
+            return items;
+        }
+
+        function displayResults(items) {
+            const container = document.getElementById('results');
+
+            if (items.length === 0) {
+                container.innerHTML = '<p style="color:#ef4444;">⚠️ Keine Produkte erkannt. Versuche ein klareres Foto.</p>';
+                return;
+            }
+
+            container.innerHTML = `
+                <h2>✓ ${items.length} Produkte erkannt (Laden: ${store})</h2>
+                <div class="info-box">
+                    <strong>📝 Hinweis:</strong> Prüfe die Ergebnisse und klicke "Speichern" um sie der Community beizutragen.
+                </div>
+            `;
+
+            items.forEach((item, i) => {
+                const div = document.createElement('div');
+                div.className = 'result-item';
+                div.innerHTML = `
+                    <div>
+                        <div class="result-name">${item.name}</div>
+                        <div style="font-size:12px;color:#64748b;">${store}</div>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:16px;">
+                        <div class="result-price">${item.price.toFixed(2)} €</div>
+                        <div class="result-actions">
+                            <button onclick="savePrice(${i})" style="background:#22c55e;color:white;border:none;padding:8px 14px;border-radius:6px;cursor:pointer;">✓ Speichern</button>
+                            <button onclick="removeItem(${i})" style="background:#ef4444;color:white;border:none;padding:8px 14px;border-radius:6px;cursor:pointer;">✗</button>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+
+            globalItems = items;
+        }
+
+        let globalItems = [];
+
+        async function savePrice(index) {
+            const item = globalItems[index];
+            if (!item) return;
+
+            try {
+                const res = await fetch('/api/v1/price_reports', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        product_identifier: item.name,
+                        store_name: store,
+                        reported_price: item.price
+                    })
+                });
+
+                if (res.ok) {
+                    const resultDiv = document.querySelectorAll('.result-item')[index];
+                    resultDiv.classList.add('verified');
+                    resultDiv.querySelector('.result-actions').innerHTML = '<span style="color:#22c55e;font-weight:600;">✓ Gespeichert</span>';
+                } else {
+                    alert('Fehler beim Speichern');
+                }
+            } catch (e) {
+                alert('Fehler: ' + e.message);
+            }
+        }
+
+        function removeItem(index) {
+            const resultDiv = document.querySelectorAll('.result-item')[index];
+            resultDiv.remove();
+            globalItems.splice(index, 1);
+        }
+
+        function reset() {
+            uploadedFile = null;
+            document.getElementById('preview').style.display = 'none';
+            document.getElementById('actions').style.display = 'none';
+            document.getElementById('results').innerHTML = '';
+            document.getElementById('file-input').value = '';
+        }
+    </script>
+</body>
+
+</html>

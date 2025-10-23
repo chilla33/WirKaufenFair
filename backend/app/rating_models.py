@@ -29,6 +29,10 @@ class PriceReport(Base):
     user_session = Column(String(100), nullable=True)
     upvotes = Column(Integer, default=0)  # confirmed by others
     downvotes = Column(Integer, default=0)  # flagged as wrong
-    status = Column(String(50), default='pending')  # pending, verified, rejected
+    status = Column(String(50), default='pending')  # pending, pending_review, verified, rejected
     verified_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow, index=True)
+    
+    # Zusätzliche Felder für bessere Anomalie-Erkennung
+    photo_url = Column(String(500), nullable=True)  # Optional: Kassenbon-Foto als Beweis
+    confidence_score = Column(Float, default=0.5)  # 0-1: Wie vertrauenswürdig ist die Meldung?

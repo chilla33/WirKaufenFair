@@ -25,3 +25,6 @@ class ProductLocation(Base):
     current_price = Column(Float, nullable=True)  # e.g. 1.99, 3.49
     price_currency = Column(String(10), default='EUR')  # EUR, USD, etc.
     price_history = Column(JSON, nullable=True)  # [{"date": "2025-10-21", "price": 1.99}, ...]
+    # Regional/Local product flags
+    is_regional = Column(Integer, default=0)  # 0=überall, 1=nur in dieser Filiale, 2=nur in dieser Region
+    availability_notes = Column(Text, nullable=True)  # z.B. "Nur in Norddeutschland", "Lokale Kartoffeln vom Hof Müller"

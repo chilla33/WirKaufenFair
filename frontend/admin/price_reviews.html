@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="de">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Preis-Reviews — Admin</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background: #f8fafc;
+            padding: 24px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            margin-bottom: 24px;
+            color: #0f172a;
+        }
+
+        .filters {
+            background: white;
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 24px;
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .filters select,
+        .filters button {
+            padding: 8px 16px;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+        }
+
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            margin-bottom: 16px;
+        }
+
+        .report-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 16px;
+        }
+
+        .report-card {
+            background: white;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 16px;
+            position: relative;
+        }
+
+        .report-card.pending {
+            border-color: #fbbf24;
+        }
+
+        .report-card.pending_review {
+            border-color: #f97316;
+            background: #fff7ed;
+        }
+
+        .report-card.verified {
+            border-color: #22c55e;
+        }
+
+        .report-card.rejected {
+            border-color: #ef4444;
+            opacity: 0.6;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .status-badge.pending {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .status-badge.pending_review {
+            background: #fed7aa;
+            color: #9a3412;
+        }
+
+        .status-badge.verified {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .status-badge.rejected {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .votes {
+            display: flex;
+            gap: 12px;
+            margin: 12px 0;
+        }
+
+        .vote-count {
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-weight: 600;
+        }
+
+        .vote-count.up {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .vote-count.down {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .btn {
+            padding: 8px 14px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 13px;
+        }
+
+        .btn-approve {
+            background: #22c55e;
+            color: white;
+        }
+
+        .btn-reject {
+            background: #ef4444;
+            color: white;
+        }
+
+        .btn-delete {
+            background: #94a3b8;
+            color: white;
+        }
+
+        .price {
+            font-size: 24px;
+            font-weight: 700;
+            color: #0f172a;
+            margin: 8px 0;
+        }
+
+        .product-name {
+            font-weight: 600;
+            color: #475569;
+            margin-bottom: 4px;
+        }
+
+        .store {
+            font-size: 13px;
+            color: #64748b;
+        }
+
+        .deviation-warning {
+            background: #fef3c7;
+            color: #92400e;
+            padding: 8px;
+            border-radius: 6px;
+            font-size: 12px;
+            margin-top: 8px;
+        }
+
+        .meta {
+            font-size: 12px;
+            color: #94a3b8;
+            margin-top: 8px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>💰 Preis-Reviews</h1>
+
+        <div class="filters">
+            <select id="status-filter" onchange="loadReports()">
+                <option value="">Alle Status</option>
+                <option value="pending" selected>Pending</option>
+                <option value="pending_review">Pending Review (⚠️)</option>
+                <option value="verified">Verifiziert</option>
+                <option value="rejected">Abgelehnt</option>
+            </select>
+            <select id="store-filter" onchange="loadReports()">
+                <option value="">Alle Läden</option>
+            </select>
+            <button onclick="loadReports()">🔄 Aktualisieren</button>
+        </div>
+
+        <div id="reports-container" class="report-grid"></div>
+    </div>
+
+    <script>
+        let allReports = [];
+
+        async function loadReports() {
+            const status = document.getElementById('status-filter').value;
+            const store = document.getElementById('store-filter').value;
+
+            let url = '/api/v1/price_reports?limit=100';
+            if (status) url += `&status=${status}`;
+            if (store) url += `&store_name=${encodeURIComponent(store)}`;
+
+            try {
+                const res = await fetch(url);
+                allReports = await res.json();
+                renderReports();
+            } catch (e) {
+                alert('Fehler beim Laden: ' + e.message);
+            }
+        }
+
+        function renderReports() {
+            const container = document.getElementById('reports-container');
+            if (allReports.length === 0) {
+                container.innerHTML = '<div class="card"><p>Keine Berichte gefunden.</p></div>';
+                return;
+            }
+
+            container.innerHTML = allReports.map(r => {
+                const statusClass = r.status;
+                const statusLabel = {
+                    'pending': 'Pending',
+                    'pending_review': '⚠️ Review',
+                    'verified': '✓ Verifiziert',
+                    'rejected': '✗ Abgelehnt'
+                }[r.status] || r.status;
+
+                const deviation = r.confidence_score < 0.5 ? `<div class="deviation-warning">⚠️ Weicht stark von Durchschnittspreis ab</div>` : '';
+
+                const qty = r.size_amount && r.size_unit ? ` (${r.size_amount} ${r.size_unit})` : '';
+
+                const date = new Date(r.created_at).toLocaleDateString('de-DE');
+                const ageDays = Math.floor((new Date() - new Date(r.created_at)) / (1000 * 60 * 60 * 24));
+                const ageWarning = ageDays > 14 ? `<span style="color:#f59e0b;font-weight:600;"> (${ageDays} Tage alt ⏰)</span>` : '';
+
+                return `
+                    <div class="report-card ${statusClass}">
+                        <span class="status-badge ${statusClass}">${statusLabel}</span>
+                        <div class="product-name">${r.product_identifier}${qty}</div>
+                        <div class="store">🏪 ${r.store_name}</div>
+                        <div class="price">${r.reported_price.toFixed(2)} €</div>
+                        
+                        <div class="votes">
+                            <div class="vote-count up">↑ ${r.upvotes}</div>
+                            <div class="vote-count down">↓ ${r.downvotes}</div>
+                        </div>
+                        
+                        ${deviation}
+                        
+                        ${r.status === 'pending' || r.status === 'pending_review' ? `
+                            <div class="actions">
+                                <button class="btn btn-approve" onclick="approveReport(${r.id})">✓ Freigeben</button>
+                                <button class="btn btn-reject" onclick="rejectReport(${r.id})">✗ Ablehnen</button>
+                            </div>
+                        ` : ''}
+                        
+                        <div class="meta">
+                            Gemeldet am ${date}${ageWarning}
+                            ${r.user_session ? ` • Session: ${r.user_session.substring(0, 8)}...` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        async function approveReport(id) {
+            if (!confirm('Preis manuell freigeben?')) return;
+
+            try {
+                // Vote 5x up to trigger auto-verify
+                for (let i = 0; i < 5; i++) {
+                    await fetch(`/api/v1/price_reports/${id}/vote`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ vote: 'up' })
+                    });
+                }
+                alert('✓ Preis freigegeben!');
+                loadReports();
+            } catch (e) {
+                alert('Fehler: ' + e.message);
+            }
+        }
+
+        async function rejectReport(id) {
+            if (!confirm('Preis ablehnen?')) return;
+
+            try {
+                // Vote 3x down to trigger auto-reject
+                for (let i = 0; i < 3; i++) {
+                    await fetch(`/api/v1/price_reports/${id}/vote`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ vote: 'down' })
+                    });
+                }
+                alert('✓ Preis abgelehnt!');
+                loadReports();
+            } catch (e) {
+                alert('Fehler: ' + e.message);
+            }
+        }
+
+        // Load on start
+        loadReports();
+
+        // Load stores for filter
+        fetch('/api/v1/product_locations')
+            .then(r => r.json())
+            .then(data => {
+                const stores = [...new Set(data.map(p => p.store_name))];
+                const sel = document.getElementById('store-filter');
+                stores.forEach(s => {
+                    const opt = document.createElement('option');
+                    opt.value = s;
+                    opt.textContent = s;
+                    sel.appendChild(opt);
+                });
+            });
+    </script>
+</body>
+
+</html>

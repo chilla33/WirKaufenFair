@@ -1,0 +1,179 @@
+// Shopping list module
+let selectedStore = '';
+let shoppingList = [];
+let allProducts = [];
+
+document.addEventListener('DOMContentLoaded', async () => {
+    await loadStores();
+    await loadAllProducts();
+
+    const storeSelect = document.getElementById('store-select');
+    const itemInput = document.getElementById('item-input');
+    const addBtn = document.getElementById('add-btn');
+    const clearBtn = document.getElementById('clear-btn');
+
+    storeSelect.addEventListener('change', (e) => {
+        selectedStore = e.target.value;
+        renderList();
+    });
+
+    addBtn.addEventListener('click', () => addItem());
+    itemInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') addItem();
+    });
+
+    clearBtn.addEventListener('click', () => {
+        if (confirm('Einkaufsliste wirklich leeren?')) {
+            shoppingList = [];
+            renderList();
+        }
+    });
+});
+
+async function loadStores() {
+    try {
+        const res = await fetch('/api/v1/product_locations');
+        const data = await res.json();
+        allProducts = data;
+
+        // Extract unique stores
+        const stores = [...new Set(data.map(p => p.store_name))].filter(Boolean).sort();
+        const select = document.getElementById('store-select');
+        stores.forEach(store => {
+            const opt = document.createElement('option');
+            opt.value = store;
+            opt.textContent = store;
+            select.appendChild(opt);
+        });
+    } catch (err) {
+        console.error('Error loading stores:', err);
+    }
+}
+
+async function loadAllProducts() {
+    // Already loaded in loadStores
+}
+
+function addItem() {
+    const input = document.getElementById('item-input');
+    const query = input.value.trim();
+    if (!query) return;
+
+    shoppingList.push({ query, matched: null });
+    input.value = '';
+    renderList();
+}
+
+function removeItem(index) {
+    shoppingList.splice(index, 1);
+    renderList();
+}
+
+function matchProducts() {
+    if (!selectedStore) return;
+
+    // Match each item query to products in selected store
+    shoppingList.forEach(item => {
+        const matches = allProducts.filter(p =>
+            p.store_name === selectedStore &&
+            p.product_identifier.toLowerCase().includes(item.query.toLowerCase())
+        );
+
+        if (matches.length > 0) {
+            // Pick highest voted / verified product
+            const best = matches.sort((a, b) => {
+                if (a.status === 'verified' && b.status !== 'verified') return -1;
+                if (b.status === 'verified' && a.status !== 'verified') return 1;
+                return (b.upvotes - b.downvotes) - (a.upvotes - a.downvotes);
+            })[0];
+            item.matched = best;
+        } else {
+            item.matched = null;
+        }
+    });
+}
+
+function sortByStoreLayout() {
+    // Sort items by aisle (Gang) and shelf (Regal) for optimized route
+    shoppingList.sort((a, b) => {
+        const aMatched = a.matched;
+        const bMatched = b.matched;
+
+        // Unmatched items go to end
+        if (!aMatched && !bMatched) return 0;
+        if (!aMatched) return 1;
+        if (!bMatched) return -1;
+
+        // Extract numeric part from aisle (e.g., "Gang 3" -> 3)
+        const aAisle = parseInt((aMatched.aisle || '').match(/\d+/)?.[0] || '999');
+        const bAisle = parseInt((bMatched.aisle || '').match(/\d+/)?.[0] || '999');
+
+        if (aAisle !== bAisle) return aAisle - bAisle;
+
+        // If same aisle, sort by shelf
+        const aShelf = (aMatched.shelf_label || '').toLowerCase();
+        const bShelf = (bMatched.shelf_label || '').toLowerCase();
+        return aShelf.localeCompare(bShelf);
+    });
+}
+
+function renderList() {
+    matchProducts();
+    sortByStoreLayout();
+
+    const container = document.getElementById('list-container');
+    const countBadge = document.getElementById('item-count');
+    countBadge.textContent = shoppingList.length;
+
+    if (shoppingList.length === 0) {
+        container.innerHTML = `
+            <div class="empty-state">
+                <p>📝 Deine Einkaufsliste ist leer.</p>
+                <p>Wähle einen Laden und füge Artikel hinzu!</p>
+            </div>
+        `;
+        return;
+    }
+
+    if (!selectedStore) {
+        container.innerHTML = `
+            <div class="empty-state">
+                <p>🏪 Bitte wähle zuerst einen Laden aus.</p>
+            </div>
+        `;
+        return;
+    }
+
+    container.innerHTML = shoppingList.map((item, i) => {
+        const matched = item.matched;
+        const matchedClass = matched ? 'matched' : '';
+
+        let details = '';
+        if (matched) {
+            const location = [matched.aisle, matched.shelf_label].filter(Boolean).join(', ');
+            details = `
+                <div class="item-details">
+                    <span class="item-location">📍 ${location || 'Standort unbekannt'}</span>
+                    ${matched.photo_url ? `<a href="${matched.photo_url}" target="_blank" style="margin-left:8px;color:#0ea5e9;">🖼️ Foto</a>` : ''}
+                    <span style="margin-left:8px;color:#64748b;">👍 ${matched.upvotes} | 👎 ${matched.downvotes}</span>
+                    ${matched.status === 'verified' ? '<span style="margin-left:8px;color:#22c55e;">✅ Verifiziert</span>' : ''}
+                </div>
+            `;
+        } else {
+            details = `<div class="item-details" style="color:#ef4444;">❌ Kein Produkt für "${item.query}" in diesem Laden gefunden.</div>`;
+        }
+
+        return `
+            <div class="list-item ${matchedClass}">
+                <div class="item-text">
+                    <div><strong>${item.query}</strong>${matched ? ` → ${matched.product_identifier}` : ''}</div>
+                    ${details}
+                </div>
+                <button onclick="window.removeShoppingItem(${i})">❌</button>
+            </div>
+        `;
+    }).join('');
+}
+
+// Expose removeItem globally for inline onclick
+window.removeShoppingItem = removeItem;

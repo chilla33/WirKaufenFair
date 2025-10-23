@@ -1,5 +1,75 @@
+# Environment Variables
 .env
+.env.local
+.env.*.local
+
+# Python
 __pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
 .venv/
+venv/
+ENV/
+env/
 *.pyc
+
+# Databases
 backend.db
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+
+# Upload directories
+uploads/
+upload/
+static/uploads/
+frontend/uploads/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+
+# Node.js
+node_modules/
+package-lock.json
+yarn.lock
+.npm
+
+# Build outputs
+dist/
+build/
+*.min.js
+*.min.css
+bundle.js
+bundle.js.map
+
+# Testing
+.coverage
+.pytest_cache/
+.mypy_cache/
+htmlcov/
+coverage.xml
+
+# OS
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.Spotlight-V100
+.Trashes
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
