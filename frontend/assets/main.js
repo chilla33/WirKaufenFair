@@ -77,7 +77,7 @@ function setupItemAutocomplete(inputEl) {
     inputEl.addEventListener('input', async () => {
         const q = inputEl.value.trim();
         if (q.length < 2) { hide(); return; }
-    let items = await fetchSuggestions(q);
+        let items = await fetchSuggestions(q);
         if (!items || items.length === 0) { hide(); return; }
         // Always filter suggestions to prefer fair / organic labeled products
         try {
@@ -97,7 +97,7 @@ function setupItemAutocomplete(inputEl) {
             console.log(`Autocomplete: filtered ${before} -> ${items.length} items (fair-priority)`);
         } catch (e) { /* ignore */ }
         const html = items.map(it => `
-            <div class="ac-item" data-title="${(it.product_name || it.display_name || '').replace(/"/g,'&quot;')}">
+            <div class="ac-item" data-title="${(it.product_name || it.display_name || '').replace(/"/g, '&quot;')}">
                 ${it.image_small_url ? `<img src="${it.image_small_url}" onerror="this.style.display='none'" alt="" style="width:40px;height:40px;border-radius:4px;object-fit:cover;">` : '<div style="width:40px;height:40px;border-radius:4px;background:#e5e7eb;display:flex;align-items:center;justify-content:center;">📦</div>'}
                 <div>
                     <div class="ac-title">${it.product_name || it.display_name || ''}</div>
@@ -200,7 +200,7 @@ async function populateStoreSelect() {
         storeSearch.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 const q = storeSearch.value.trim().toLowerCase();
-                const match = (window._lastFetchedStores || []).find(s => (s.full_name||'').toLowerCase().includes(q));
+                const match = (window._lastFetchedStores || []).find(s => (s.full_name || '').toLowerCase().includes(q));
                 if (match) {
                     // simulate click on the corresponding dropdown item
                     const el = container.querySelector(`.dropdown-item[data-osm="${match.osm_id}"]`);
