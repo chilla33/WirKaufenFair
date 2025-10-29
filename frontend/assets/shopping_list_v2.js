@@ -892,23 +892,22 @@ async function matchSingleItem(item) {
                     return { product: p, score: 0, source: 'off' };
                 }
 
-                const hasAnchor = anchorList.length === 0 ? true : anchorList.some(t => idLower.includes(t));
-                if (!hasAnchor) {
-                    console.log(`  ✗ Filtered out (no anchor): ${identifier}`);
-                    return { product: p, score: 0, source: 'off' };
-                }
+                // Compute best fuzzy score across expanded queries (allow matches even without exact token anchor)
                 let maxScore = 0;
                 expandedQueries.forEach(q => {
-                    const score = fuzzyMatch(q, identifier, 0.7);
+                    const score = fuzzyMatch(q, identifier, 0.6);
                     if (score > maxScore) maxScore = score;
                 });
                 const boost = brandBoost(item.query, identifier);
                 maxScore = Math.min(1.0, maxScore + boost);
-                if (maxScore > 0.70) {
+                if (maxScore > 0.60) {
                     console.log(`  ✓ Kept (score ${maxScore.toFixed(2)}): ${identifier}`);
+                    return { product: p, score: maxScore, source: 'off' };
+                } else {
+                    console.log(`  ✗ Filtered out (low fuzzy score ${maxScore.toFixed(2)}): ${identifier}`);
+                    return { product: p, score: 0, source: 'off' };
                 }
-                return { product: p, score: maxScore, source: 'off' };
-            }).filter(m => m.score > 0.70); // STRENGER: Nur gute OFF Matches
+            }).filter(m => m.score > 0.60); // etwas lockerer: mehr OFF Matches
             console.log(`After scoring, ${scoredOff.length} OFF products qualify`);
             candidates = candidates.concat(scoredOff);
         } catch (e) {
@@ -920,7 +919,7 @@ async function matchSingleItem(item) {
 
     candidates.sort((a, b) => b.score - a.score);
 
-    const qualityCandidates = candidates.filter(c => c.score >= 0.70); // STRENGER: Mindestqualität 70%
+    const qualityCandidates = candidates.filter(c => c.score >= 0.60); // Mindestqualität 60%
     const deduped = deduplicateCandidates(qualityCandidates);
 
     deduped.forEach(c => {

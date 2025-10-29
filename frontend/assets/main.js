@@ -8,6 +8,9 @@ import * as matcher from './modules/matcher.js';
 import * as renderer from './modules/renderer.js';
 import * as handlers from './modules/ui-handlers.js';
 import * as off from './modules/openfoodfacts.js';
+import { setupItemAutocomplete } from './modules/autocomplete.js';
+import { setupAddFlow } from './modules/addflow.js';
+import * as scoring from './modules/scoring.js';
 import { renderRoute } from './modules/route.js';
 import { showPriceHistory, closePriceModal } from './modules/price-history.js';
 
@@ -15,9 +18,30 @@ import { showPriceHistory, closePriceModal } from './modules/price-history.js';
 let selectedStore = '';
 let shoppingList = [];
 
+// Helpers
+function normalizeLabels(val) {
+    if (!val) return [];
+    if (Array.isArray(val)) return val.map(s => String(s));
+    if (typeof val === 'string') return val.split(/[,;]+/).map(s => s.trim()).filter(Boolean);
+    return [];
+}
+
 function updateContext() {
     renderer.setRenderContext(shoppingList, selectedStore);
     handlers.setHandlerContext(shoppingList);
+}
+
+function renderCurrentList() {
+    // Use enhanced renderer if available (shows prices & route), otherwise fallback
+    if (typeof renderer.renderListWithPrices === 'function') {
+        try {
+            renderer.renderListWithPrices(shoppingList, selectedStore);
+            return;
+        } catch (e) {
+            console.warn('renderListWithPrices failed, falling back to renderList:', e);
+        }
+    }
+    if (typeof renderer.renderList === 'function') renderer.renderList();
 }
 
 // Initialisierung
@@ -43,127 +67,41 @@ async function initializeApp() {
     selectedStore = localStorage.getItem('wirkaufenfair_store') || '';
     shoppingList = persistence.loadFromLocalStorage(selectedStore);
     updateContext();
-    renderer.renderList();
+    renderCurrentList();
     await populateStoreSelect();
-    wireAddButton();
-    setupItemAutocomplete(document.getElementById('item-input'));
-}
+    wireClearButton();
+    // Autocomplete disabled while typing — suggestions should only appear after clicking "Hinzufügen"
+    // If you want live autocomplete, re-enable by uncommenting the setupItemAutocomplete call below.
+    // setupItemAutocomplete(document.getElementById('item-input'), (product) => {
+    //     window._pendingOffProduct = product;
+    //     window._pendingQuery = product.product_name || product.generic_name || product.display_name || '';
+    //     window.renderPendingSelection && window.renderPendingSelection(product);
+    // });
 
-// Autocomplete setup (uses /api/v1/openfoodfacts/search as backend)
-function setupItemAutocomplete(inputEl) {
-    const acEl = document.getElementById('item-autocomplete');
-    if (!inputEl || !acEl) return;
-
-    let acAbort = null;
-
-    const hide = () => { acEl.style.display = 'none'; acEl.innerHTML = ''; };
-    const show = (html) => { acEl.innerHTML = html; acEl.style.display = 'block'; };
-
-    const fetchSuggestions = async (q) => {
-        if (acAbort) acAbort.abort();
-        const ctrl = new AbortController();
-        acAbort = ctrl;
-        try {
-            const url = `/api/v1/openfoodfacts/search?query=${encodeURIComponent(q)}&page_size=8`;
-            const res = await fetch(url, { signal: ctrl.signal });
-            if (!res.ok) throw new Error('search failed');
-            const data = await res.json();
-            return data.products || [];
-        } catch (e) {
-            return [];
-        }
-    };
-
-    inputEl.addEventListener('input', async () => {
-        const q = inputEl.value.trim();
-        if (q.length < 2) { hide(); return; }
-        let items = await fetchSuggestions(q);
-        if (!items || items.length === 0) { hide(); return; }
-        // Always filter suggestions to prefer fair / organic labeled products
-        try {
-            const filterKeywords = ['fair', 'fairtrade', 'fair-trade', 'rainforest', 'utz', 'organic', 'bio', 'biologique', 'fairtrade.org'];
-            const hasFairLabel = (it) => {
-                const tags = (it.labels_tags || it.labels || []).map(s => String(s).toLowerCase());
-                for (const kw of filterKeywords) {
-                    if (tags.some(t => t.includes(kw))) return true;
-                }
-                const name = (it.product_name || it.display_name || '').toLowerCase();
-                if (filterKeywords.some(kw => name.includes(kw))) return true;
-                return false;
-            };
-            const before = items.length;
-            const filtered = items.filter(hasFairLabel);
-            if (filtered.length > 0) items = filtered; // prefer labelled products but fall back if none
-            console.log(`Autocomplete: filtered ${before} -> ${items.length} items (fair-priority)`);
-        } catch (e) { /* ignore */ }
-        const html = items.map(it => `
-            <div class="ac-item" data-title="${(it.product_name || it.display_name || '').replace(/"/g, '&quot;')}">
-                ${it.image_small_url ? `<img src="${it.image_small_url}" onerror="this.style.display='none'" alt="" style="width:40px;height:40px;border-radius:4px;object-fit:cover;">` : '<div style="width:40px;height:40px;border-radius:4px;background:#e5e7eb;display:flex;align-items:center;justify-content:center;">📦</div>'}
-                <div>
-                    <div class="ac-title">${it.product_name || it.display_name || ''}</div>
-                    ${it.code ? `<div class="ac-sub">${it.code}</div>` : ''}
-                </div>
-            </div>
-        `).join('');
-        show(html);
-    });
-
-    acEl.addEventListener('mousedown', (e) => {
-        const item = e.target.closest('.ac-item');
-        if (!item) return;
-        const title = item.getAttribute('data-title') || '';
-        inputEl.value = title;
-        hide();
-    });
-
-    document.addEventListener('click', (e) => {
-        if (!acEl.contains(e.target) && e.target !== inputEl) hide();
+    // Initialize add-flow wiring (uses callbacks to access shoppingList/selectedStore)
+    setupAddFlow({
+        getShoppingList: () => shoppingList,
+        setShoppingList: (newList) => { shoppingList = newList; },
+        getSelectedStore: () => selectedStore,
+        saveAndRender: () => { persistence.saveToLocalStorage(selectedStore, shoppingList); updateContext(); renderCurrentList(); }
     });
 }
 
-function wireAddButton() {
-    const addBtn = document.getElementById('add-btn');
-    const itemInput = document.getElementById('item-input');
-    const qtyInput = document.getElementById('quantity-input');
-    if (!addBtn || !itemInput) return;
-    addBtn.addEventListener('click', () => addItemFromInputs());
-    itemInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') addItemFromInputs(); });
-    qtyInput && qtyInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') addItemFromInputs(); });
+function wireClearButton() {
+    const btn = document.getElementById('clear-btn');
+    if (!btn) return;
+    btn.addEventListener('click', () => {
+        if (!confirm('Willst du die Einkaufsliste wirklich leeren?')) return;
+        shoppingList = [];
+        persistence.saveToLocalStorage(selectedStore, shoppingList);
+        updateContext();
+        renderCurrentList();
+    });
 }
 
-function addItemFromInputs() {
-    const itemInput = document.getElementById('item-input');
-    const qtyInput = document.getElementById('quantity-input');
-    if (!itemInput) return;
-    const text = (itemInput.value || '').trim();
-    const qty = (qtyInput && qtyInput.value) ? qtyInput.value.trim() : '';
-    if (!text) return alert('Bitte gib ein Produkt ein.');
-    if (!selectedStore) return alert('Bitte wähle zuerst einen Laden aus.');
-    // Simple item object
-    const item = { text, quantity: qty, addedAt: Date.now() };
-    shoppingList.push(item);
-    // Try to enrich item with OFF data (nutriscore/ecoscore) for better fair scoring
-    (async () => {
-        try {
-            const products = await off.fetchOffProducts(text, 1);
-            if (products && products.length > 0) {
-                const p = products[0];
-                item.off = p;
-                if (p.nutriscore_grade) item.nutriscore = p.nutriscore_grade;
-                if (p.ecoscore_grade) item.ecoscore = p.ecoscore_grade;
-            }
-        } catch (e) {
-            // ignore
-        } finally {
-            persistence.saveToLocalStorage(selectedStore, shoppingList);
-            updateContext();
-            renderer.renderList();
-        }
-    })();
-    // clear inputs
-    itemInput.value = '';
-    if (qtyInput) qtyInput.value = '';
-}
+// Autocomplete is implemented in modules/autocomplete.js
+
+// add-flow was moved to modules/addflow.js
 
 // Custom Dropdown für Stores
 async function populateStoreSelect() {
@@ -205,8 +143,103 @@ async function populateStoreSelect() {
                     // simulate click on the corresponding dropdown item
                     const el = container.querySelector(`.dropdown-item[data-osm="${match.osm_id}"]`);
                     if (el) el.click();
+                } else {
+                    // fallback: server-side search
+                    (async () => {
+                        try {
+                            const url = `/api/v1/stores?q=${encodeURIComponent(q)}&limit=20`;
+                            const res = await fetch(url);
+                            if (res.ok) {
+                                const data = await res.json();
+                                if (data && data.length > 0) {
+                                    const s = data[0];
+                                    const el2 = container.querySelector(`.dropdown-item[data-osm="${s.osm_id}"]`);
+                                    if (el2) { el2.click(); }
+                                    else {
+                                        // if not in current DOM, select programmatically
+                                        selectedStore = String(s.osm_id);
+                                        localStorage.setItem('wirkaufenfair_store', selectedStore);
+                                        shoppingList = persistence.loadFromLocalStorage(selectedStore);
+                                        updateContext();
+                                        renderer.renderList();
+                                        showStoreDetail(s);
+                                        updateStoreSelectedLabel(s);
+                                    }
+                                }
+                            }
+                        } catch (e) { /* ignore */ }
+                    })();
                 }
             }
+        });
+    }
+
+    // Manual location UI handlers
+    const editBtn = document.getElementById('edit-location-btn');
+    const editArea = document.getElementById('edit-location-area');
+    const currentLocVal = document.getElementById('current-location-value');
+    const manualLat = document.getElementById('manual-lat');
+    const manualLng = document.getElementById('manual-lng');
+    const saveBtn = document.getElementById('save-manual-location');
+    const cancelBtn = document.getElementById('cancel-manual-location');
+    function loadPersistedLocation() {
+        try {
+            const raw = localStorage.getItem('wirkaufenfair_manual_location');
+            if (!raw) return null;
+            return JSON.parse(raw);
+        } catch { return null; }
+    }
+    function updateLocationDisplay(loc) {
+        if (!currentLocVal) return;
+        if (!loc) currentLocVal.textContent = '(nicht gesetzt)';
+        else currentLocVal.textContent = `${loc.latitude.toFixed(5)}, ${loc.longitude.toFixed(5)}`;
+    }
+    // Initialize display from storeApi.getUserLocation or persisted
+    const persisted = loadPersistedLocation();
+    if (persisted) {
+        storeApi.setUserLocation(persisted);
+        updateLocationDisplay(persisted);
+    } else if (storeApi.getUserLocation()) {
+        updateLocationDisplay(storeApi.getUserLocation());
+    }
+    if (editBtn && editArea) {
+        editBtn.addEventListener('click', () => {
+            editArea.style.display = '';
+            manualLat.value = '';
+            manualLng.value = '';
+        });
+    }
+    if (cancelBtn && editArea) {
+        cancelBtn.addEventListener('click', () => { editArea.style.display = 'none'; });
+    }
+    if (saveBtn) {
+        saveBtn.addEventListener('click', async () => {
+            const a = manualLat.value.trim();
+            const b = manualLng.value.trim();
+            let loc = null;
+            if (a && b && !isNaN(parseFloat(a)) && !isNaN(parseFloat(b))) {
+                loc = { latitude: parseFloat(a), longitude: parseFloat(b) };
+            } else if (a) {
+                // treat 'a' as place name -> geocode via Nominatim
+                try {
+                    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(a)}&limit=1`;
+                    const res = await fetch(url);
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (data && data[0]) {
+                            loc = { latitude: parseFloat(data[0].lat), longitude: parseFloat(data[0].lon) };
+                        }
+                    }
+                } catch (e) { /* ignore */ }
+            }
+            if (!loc) return alert('Ungültiger Ort. Bitte Lat/Lng eingeben oder einen Ortennamen versuchen.');
+            // persist and apply
+            localStorage.setItem('wirkaufenfair_manual_location', JSON.stringify(loc));
+            storeApi.setUserLocation(loc);
+            updateLocationDisplay(loc);
+            editArea.style.display = 'none';
+            // reload stores for new location
+            await populateStoreSelect();
         });
     }
 

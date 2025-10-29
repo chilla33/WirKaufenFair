@@ -452,6 +452,21 @@
                     <div id="store-selected-label"
                         style="width:100%;padding:10px;border-radius:6px;border:1px solid #e5e7eb;font-size:16px;background:#fff;cursor:pointer;user-select:none;">
                         Laden auswählen...</div>
+                    <div id="current-location" style="margin-top:8px;font-size:13px;color:#64748b;">Standort: <span
+                            id="current-location-value">(nicht gesetzt)</span> <button id="edit-location-btn"
+                            style="margin-left:8px;padding:4px 8px;border-radius:6px;border:1px solid #e5e7eb;background:#fff;cursor:pointer;">Bearbeiten</button>
+                    </div>
+                    <div id="edit-location-area" style="display:none;margin-top:8px;">
+                        <input id="manual-lat" placeholder="Lat"
+                            style="width:45%;padding:6px;border:1px solid #e5e7eb;border-radius:6px;margin-right:4%;">
+                        <input id="manual-lng" placeholder="Lng"
+                            style="width:45%;padding:6px;border:1px solid #e5e7eb;border-radius:6px;">
+                        <div style="margin-top:6px;"><button id="save-manual-location"
+                                style="padding:6px 10px;border-radius:6px;border:none;background:#0ea5e9;color:white;cursor:pointer;">Speichern</button>
+                            <button id="cancel-manual-location"
+                                style="padding:6px 10px;border-radius:6px;border:none;background:#e5e7eb;color:#334155;cursor:pointer;margin-left:8px;">Abbrechen</button>
+                        </div>
+                    </div>
                 </div>
                 <style>
                     .custom-dropdown-list {
@@ -635,6 +650,28 @@
     <script type="module" src="/assets/modules/price-history.js"></script>
     <script src="/assets/price_verification_dialog.js"></script>
 
+    <!-- Score legend modal -->
+    <div id="score-legend-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="score-legend-title">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="score-legend-title" style="margin:0;">Wie wird der Score berechnet?</h3>
+                <button class="modal-close"
+                    onclick="document.getElementById('score-legend-modal').classList.remove('active')">✕</button>
+            </div>
+            <div style="font-size:14px;color:#334155;line-height:1.5;">
+                <p>Der Fairness‑Score ist eine einfache Hilfsmetrik, die mehrere Aspekte kombiniert:</p>
+                <ul>
+                    <li><strong>Eco (40%)</strong> — Umwelteinfluss basierend auf EcoScore / Eco‑Label.</li>
+                    <li><strong>Ethics (30%)</strong> — Soziale/ethische Kennzahlen (sofern vorhanden).</li>
+                    <li><strong>Nutri (20%)</strong> — Nährwertbewertung (NutriScore).</li>
+                    <li><strong>Bonusse</strong> — kleine Boni für verifizierte Produkte oder lokale Quellen.</li>
+                </ul>
+                <p>Der Score wird normalisiert auf 0..1 (höher = besser). Er dient als Orientierungshilfe bei der
+                    Auswahl.</p>
+            </div>
+        </div>
+    </div>
+
     <!-- Dark Mode Toggle Script -->
     <script>
         // Load saved theme preference or use system preference
@@ -682,6 +719,43 @@
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('/static/assets/sw.js').catch(() => { });
         }
+    </script>
+    <script>
+        // Modal open/close helpers with focus management
+        window.openModal = function (id) {
+            const modal = document.getElementById(id);
+            if (!modal) return;
+            // remember opener to restore focus later
+            modal._opener = document.activeElement;
+            modal.classList.add('active');
+            // find first focusable element inside modal
+            const focusable = modal.querySelectorAll('button, a, input, textarea, [tabindex]:not([tabindex="-1"])');
+            if (focusable && focusable.length) focusable[0].focus();
+            // trap focus
+            modal._onKey = function (e) {
+                if (e.key === 'Escape') { window.closeModal(id); }
+                if (e.key === 'Tab') {
+                    const nodes = Array.from(modal.querySelectorAll('button, a, input, textarea, [tabindex]:not([tabindex="-1"])')).filter(n => !n.disabled && n.offsetParent !== null);
+                    if (nodes.length === 0) return;
+                    const first = nodes[0];
+                    const last = nodes[nodes.length - 1];
+                    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+                    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+                }
+            };
+            document.addEventListener('keydown', modal._onKey);
+        };
+
+        window.closeModal = function (id) {
+            const modal = document.getElementById(id);
+            if (!modal) return;
+            modal.classList.remove('active');
+            if (modal._onKey) {
+                document.removeEventListener('keydown', modal._onKey);
+                modal._onKey = null;
+            }
+            try { if (modal._opener && typeof modal._opener.focus === 'function') modal._opener.focus(); } catch (e) { /* ignore */ }
+        };
     </script>
 </body>
 

@@ -1,6 +1,6 @@
 
 from fastapi import FastAPI, Request
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 import os
 import httpx
@@ -8,8 +8,31 @@ from typing import Optional
 import math
 import time
 import urllib.parse
+from asyncio import sleep
 
 app = FastAPI()
+
+# Global HTTP helpers for external APIs
+VERIFY_SSL = False
+REQUEST_TIMEOUT = 30.0
+
+async def http_get_with_retry(url, params=None, timeout=REQUEST_TIMEOUT, retries=3, verify=VERIFY_SSL):
+	"""Simple async GET with exponential backoff retries."""
+	delay = 0.5
+	last_exc = None
+	for attempt in range(1, retries + 1):
+		try:
+			async with httpx.AsyncClient(timeout=timeout, verify=verify) as client:
+				resp = await client.get(url, params=params)
+				return resp
+		except Exception as e:
+			last_exc = e
+			print(f'HTTP GET attempt {attempt} to {url} failed: {e}')
+			if attempt == retries:
+				break
+			await sleep(delay)
+			delay *= 2
+	raise last_exc
 
 # Hilfsfunktion: Overpass-Query für Supermärkte/Läden
 def build_overpass_query(lat, lng, radius):
@@ -30,10 +53,15 @@ def build_overpass_query(lat, lng, radius):
 
 # API-Endpunkt: Läden aus OSM/Overpass
 @app.get("/api/v1/stores")
-async def get_osm_stores(lat: Optional[float] = None, lng: Optional[float] = None, radius_km: Optional[float] = 10, limit: int = 200):
+async def get_osm_stores(lat: Optional[float] = None, lng: Optional[float] = None, radius_km: Optional[float] = 10, limit: int = 200, q: Optional[str] = None):
+	# If no coordinates provided and no query, return demo stores
 	if lat is None or lng is None:
-		# Fallback: Beispiel-Läden
-		return stores_data[:limit]
+		if not q:
+			return stores_data[:limit]
+		# If query provided but no coords, expand search radius globally (not ideal)
+		# We'll run Overpass around global bbox by skipping around: use large radius at 0,0 (best-effort)
+		lat = 0.0
+		lng = 0.0
 	radius = int((radius_km or 10) * 1000)
 	# Simple in-memory cache to reduce Overpass load (valid for 60s)
 	cache_key = f"{lat:.6f}:{lng:.6f}:{radius}"
@@ -45,12 +73,47 @@ async def get_osm_stores(lat: Optional[float] = None, lng: Optional[float] = Non
 		ts, val = cache[cache_key]
 		if now - ts < 60:
 			return val[:limit]
-	query = build_overpass_query(lat, lng, radius)
+	# If q is present, modify query to search names matching q
+	if q:
+		# escape regex-like characters
+		q_esc = q.replace('"', '').replace('/', ' ')
+		query = f"""
+		[out:json][timeout:30];
+		(
+		  node["name"~"{q_esc}",i](around:{radius},{lat},{lng});
+		  way["name"~"{q_esc}",i](around:{radius},{lat},{lng});
+		  relation["name"~"{q_esc}",i](around:{radius},{lat},{lng});
+		);
+		out center;
+		"""
+	else:
+		query = build_overpass_query(lat, lng, radius)
 	url = "https://overpass-api.de/api/interpreter"
+	async def http_post_with_retry(url, data, timeout=60.0, retries=3):
+		delay = 0.5
+		for attempt in range(1, retries + 1):
+			try:
+				async with httpx.AsyncClient(timeout=timeout) as client:
+					resp = await client.post(url, data=data)
+					return resp
+			except Exception as e:
+				print(f'Overpass request attempt {attempt} failed: {e}')
+				if attempt == retries:
+					raise
+				await sleep(delay)
+				delay *= 2
+
 	try:
-		async with httpx.AsyncClient(timeout=30) as client:
-			resp = await client.post(url, data={"data": query})
+		resp = await http_post_with_retry(url, {"data": query}, timeout=60.0, retries=3)
+		try:
 			data = resp.json()
+		except Exception as je:
+			print('Overpass response parse error:', je, 'status:', getattr(resp, 'status_code', None))
+			try:
+				print('Overpass response text:', resp.text[:1000])
+			except Exception:
+				pass
+			raise
 		elements = data.get("elements", [])
 		# Umwandeln in gewünschtes Format
 		results = []
@@ -110,12 +173,25 @@ async def off_search(query: Optional[str] = None, page_size: int = 8):
 		'json': 1,
 		'action': 'process'
 	}
+	# use module-level http_get_with_retry
+
 	try:
-		async with httpx.AsyncClient(timeout=20) as client:
-			resp = await client.get(url, params=params)
-			if resp.status_code != 200:
-				return {"products": []}
+		try:
+			resp = await http_get_with_retry(url, params=params, timeout=20.0, retries=2, verify=VERIFY_SSL)
+		except Exception:
+			# last-ditch: try without SSL verification
+			resp = await http_get_with_retry(url, params=params, timeout=20.0, retries=1, verify=False)
+		if resp.status_code != 200:
+			return {"products": []}
+		try:
 			data = resp.json()
+		except Exception as je:
+			print('OFF proxy parse error:', je, 'status:', getattr(resp, 'status_code', None))
+			try:
+				print('OFF proxy response text:', resp.text[:1000])
+			except Exception:
+				pass
+			return {"products": []}
 		products = data.get('products', [])
 		out = []
 		for p in products:
@@ -128,7 +204,7 @@ async def off_search(query: Optional[str] = None, page_size: int = 8):
 			})
 		return {"products": out}
 	except Exception as e:
-		print('OFF proxy error:', e)
+		print('OFF proxy error:', repr(e))
 		return {"products": []}
 
 
@@ -138,14 +214,24 @@ async def off_product(barcode: str):
 		return {"product": None}
 	url = f'https://world.openfoodfacts.org/api/v0/product/{urllib.parse.quote(barcode)}.json'
 	try:
-		async with httpx.AsyncClient(timeout=20) as client:
-			resp = await client.get(url)
-			if resp.status_code != 200:
-				return {"product": None}
+		try:
+			resp = await http_get_with_retry(url, timeout=20.0, retries=2, verify=VERIFY_SSL)
+		except Exception:
+			resp = await http_get_with_retry(url, timeout=20.0, retries=1, verify=False)
+		if resp.status_code != 200:
+			return {"product": None}
+		try:
 			data = resp.json()
+		except Exception as je:
+			print('OFF product proxy parse error:', je, 'status:', getattr(resp, 'status_code', None))
+			try:
+				print('OFF product response text:', resp.text[:1000])
+			except Exception:
+				pass
+			return {"product": None}
 		return {"product": data.get('product')}
 	except Exception as e:
-		print('OFF product proxy error:', e)
+		print('OFF product proxy error:', repr(e))
 		return {"product": None}
 
 
@@ -161,6 +247,20 @@ app.mount("/static", StaticFiles(directory=static_dir), name="static")
 # Assets-Ordner bereitstellen (z.B. für /assets)
 assets_dir = os.path.join(os.path.dirname(__file__), '..', 'frontend', 'assets')
 app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+
+# Serve legacy style.css if present (some pages request /style.css)
+style_path = os.path.join(os.path.dirname(__file__), '..', 'frontend', 'style.css')
+if os.path.exists(style_path):
+	@app.get('/style.css')
+	def style_css():
+		return FileResponse(style_path)
+
+# Serve favicon.ico if present under assets
+favicon_path = os.path.join(assets_dir, 'favicon.ico')
+if os.path.exists(favicon_path):
+	@app.get('/favicon.ico')
+	def favicon():
+		return FileResponse(favicon_path)
 
 # Beispielroute für Testzwecke
 @app.get("/api/v1/hello")
