@@ -13,7 +13,19 @@ if (Test-Path ".\.venv\Scripts\Activate.ps1") {
     & .\.venv\Scripts\Activate.ps1
 } else {
     Write-Host "Virtualenv activation script not found at .\.venv\Scripts\Activate.ps1" -ForegroundColor Yellow
-    Write-Host "Activate your virtualenv manually before running the server." -ForegroundColor Yellow
+    Write-Host "Attempting to create a virtual environment at .\.venv using 'python -m venv .\.venv'..." -ForegroundColor Yellow
+    try {
+        python -m venv .\.venv
+        if (Test-Path ".\.venv\Scripts\Activate.ps1") {
+            Write-Host "Virtual environment created. Activating..." -ForegroundColor Green
+            & .\.venv\Scripts\Activate.ps1
+        } else {
+            Write-Host "Created .venv but activation script still not found. Please activate your venv manually." -ForegroundColor Yellow
+        }
+    } catch {
+        Write-Host "Failed to create virtual environment automatically. Please create and activate a venv manually." -ForegroundColor Red
+        Write-Host "Error: $_" -ForegroundColor Red
+    }
 }
 
 # Start uvicorn using package module path so Python finds `backend.app` package
