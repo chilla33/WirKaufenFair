@@ -567,9 +567,17 @@ async function matchSingleItem(item) {
     const scoredLocal = localProducts.map(p => {
         const identifier = p.product_identifier || p.product_name || '';
         const idLower = identifier.toLowerCase();
-        // Require at least one anchor term (token or synonym) to appear in the identifier
-        const hasAnchor = anchorList.length === 0 ? true : anchorList.some(t => idLower.includes(t));
-        if (!hasAnchor) return { product: p, score: 0, source: 'local' };
+        // Instead of dropping local products lacking anchors, mark whether an anchor exists
+        const anchorLower = anchorList.map(a => a.toLowerCase());
+        let matchedField = null;
+        try {
+            for (const a of anchorLower) {
+                if (!a) continue;
+                if (identifier && identifier.toLowerCase().includes(a)) { matchedField = 'identifier'; break; }
+                if (p.brands && p.brands.toLowerCase().includes(a)) { matchedField = 'brands'; break; }
+            }
+        } catch (e) { matchedField = null; }
+        p.__matchedField = matchedField;
         let maxScore = 0;
         expandedQueries.forEach(q => {
             const score = fuzzyMatch(q, identifier, 0.6);
@@ -578,7 +586,7 @@ async function matchSingleItem(item) {
         const boost = brandBoost(item.query, identifier);
         maxScore = Math.min(1.0, maxScore + boost + 0.15);
         return { product: p, score: maxScore, source: 'local' };
-    }).filter(m => m.score > 0.65); // STRENGER: Nur gute lokale Matches
+    }).filter(m => m.score > 0.65); // keep good local matches
 
     // Enriche local products with OFF data via barcode lookup
     await enrichLocalProductsWithOFF(scoredLocal);
@@ -604,11 +612,20 @@ async function matchSingleItem(item) {
             const scoredOff = offProducts.map(p => {
                 const identifier = p.product_identifier || p.product_name || '';
                 const idLower = identifier.toLowerCase();
-                const hasAnchor = anchorList.length === 0 ? true : anchorList.some(t => idLower.includes(t));
-                if (!hasAnchor) {
-                    console.log(`  ✗ Filtered out (no anchor): ${identifier}`);
-                    return { product: p, score: 0, source: 'off' };
-                }
+                // Do not filter out products for missing anchors. Instead mark whether a strict anchor
+                // exists in key fields (product_name/product_name_de/generic_name/brands) for diagnostics.
+                const anchorLower = anchorList.map(a => a.toLowerCase());
+                let matchedField = null;
+                try {
+                    for (const a of anchorLower) {
+                        if (!a) continue;
+                        if (p.product_name && p.product_name.toLowerCase().includes(a)) { matchedField = 'product_name'; break; }
+                        if (p.product_name_de && p.product_name_de.toLowerCase().includes(a)) { matchedField = 'product_name_de'; break; }
+                        if (p.generic_name && p.generic_name.toLowerCase().includes(a)) { matchedField = 'generic_name'; break; }
+                        if (p.brands && p.brands.toLowerCase().includes(a)) { matchedField = 'brands'; break; }
+                    }
+                } catch (e) { matchedField = null; }
+                p.__matchedField = matchedField;
                 let maxScore = 0;
                 expandedQueries.forEach(q => {
                     const score = fuzzyMatch(q, identifier, 0.7);
@@ -620,8 +637,9 @@ async function matchSingleItem(item) {
                     console.log(`  ✓ Kept (score ${maxScore.toFixed(2)}): ${identifier}`);
                 }
                 return { product: p, score: maxScore, source: 'off' };
-            }).filter(m => m.score > 0.70); // STRENGER: Nur gute OFF Matches
-            console.log(`After scoring, ${scoredOff.length} OFF products qualify`);
+            });
+            console.log(`After scoring, ${scoredOff.length} OFF products scored (no hard filter applied)`);
+            // Keep scored OFF products (do not aggressively filter here); let later ranking decide.
             candidates = candidates.concat(scoredOff);
         } catch (e) {
             console.error('OFF fetch failed:', e);
@@ -632,8 +650,8 @@ async function matchSingleItem(item) {
 
     candidates.sort((a, b) => b.score - a.score);
 
-    const qualityCandidates = candidates.filter(c => c.score >= 0.70); // STRENGER: Mindestqualität 70%
-    const deduped = deduplicateCandidates(qualityCandidates);
+    // Do not drop candidates by an arbitrary score threshold here; dedupe then compute fair/combined
+    const deduped = deduplicateCandidates(candidates);
 
     deduped.forEach(c => {
         c.fairScore = computeFairScore(c.product, c.source);

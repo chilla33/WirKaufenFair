@@ -76,7 +76,9 @@ export function setupAddFlow({ getShoppingList, setShoppingList, getSelectedStor
                     try {
                         const allProducts = window._allProductLocations || [];
                         const store = getSelectedStore();
-                        const results = await matcher.findSuggestions(text, { allProducts, selectedStore: store, useLiveOFF: true });
+                        // store the query so Load more can reuse it
+                        window._pendingQuery = text;
+                        const results = await matcher.findSuggestions(text, { allProducts, selectedStore: store, useLiveOFF: true, needed: 8 });
                         console.log('addflow: matcher.findSuggestions returned', results.length, 'results');
                         // matcher returns array of { product, score, source }
                         suggestions = results.map(r => {
@@ -104,10 +106,12 @@ export function setupAddFlow({ getShoppingList, setShoppingList, getSelectedStor
                         })();
                     } catch (e) {
                         console.error('Matcher pipeline failed, falling back to OFF fetch:', e);
-                        suggestions = await off.fetchOffProducts(text, 8);
+                        window._pendingQuery = text;
+                        suggestions = await off.fetchOffProducts(text, 100, 200);
                     }
                 } else {
-                    suggestions = await off.fetchOffProducts(text, 8);
+                    window._pendingQuery = text;
+                    suggestions = await off.fetchOffProducts(text, 100, 200);
                 }
                 if (suggestions && suggestions.length > 0) {
                     // default: respect user's previous toggle (persisted in localStorage).
@@ -300,7 +304,7 @@ export function setupAddFlow({ getShoppingList, setShoppingList, getSelectedStor
                         if ((original.length || 0) <= window._pendingOffset + PAGE_SIZE && off && typeof off.fetchOffProducts === 'function') {
                             try {
                                 // attempt to fetch more candidates from OFF (ask for a larger max_results)
-                                const extra = await off.fetchOffProducts(window._pendingQuery || '', 60, 200);
+                                const extra = await off.fetchOffProducts(window._pendingQuery || '', 60, 400);
                                 const existing = new Set((original || []).map(p => p.code));
                                 for (const p of extra) if (!existing.has(p.code)) original.push(p);
                                 window._pendingSuggestionsOriginal = original;

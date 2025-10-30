@@ -173,7 +173,7 @@ export function strictAnchorMatch(product, anchorLower) {
 // Diagnostic helper: fetch OFF products and show how many are kept vs filtered by strict anchor
 export async function runAnchorFilterTest(query, pageSize = 60, maxResults = 180) {
     console.log('runAnchorFilterTest: fetching OFF products for', query);
-    const offProducts = await off.fetchOffProducts(query, pageSize, maxResults, 'fair');
+    const offProducts = await off.fetchOffProducts(query, pageSize, maxResults, '');
     console.log('runAnchorFilterTest: OFF returned', offProducts.length);
     const anchorLower = getCoreQueryTokens(query).map(a => a.toLowerCase()).concat(...getCoreQueryTokens(query).flatMap(t => expandQueryWithSynonyms(t))).map(x => x.toLowerCase());
     const kept = [];
@@ -298,9 +298,15 @@ export async function findSuggestions(query, { allProducts = [], selectedStore =
     const scoredLocal = localProducts.map(p => {
         const identifier = p.product_identifier || p.product_name || '';
         const idLower = identifier.toLowerCase();
-        if (shouldExcludeProduct(coreTokens, identifier)) return { product: p, score: 0, source: 'local' };
-        const hasAnchor = anchorList.length === 0 ? true : anchorList.some(t => idLower.includes(t));
-        if (!hasAnchor) return { product: p, score: 0, source: 'local' };
+
+        // mark excluded products but continue (do not hard-filter here)
+        const excluded = shouldExcludeProduct(coreTokens, identifier);
+        if (excluded) p.__excluded = true;
+
+        // mark matched anchor (or null) for diagnostics — don't drop the product
+        const matchedAnchor = anchorList.length === 0 ? null : anchorList.find(t => idLower.includes(t)) || null;
+        p.__matchedField = matchedAnchor;
+
         let maxScore = 0;
         expandedQueries.forEach(q => {
             const score = fuzzyMatch(q, identifier, 0.6);
@@ -309,7 +315,7 @@ export async function findSuggestions(query, { allProducts = [], selectedStore =
         const boost = brandBoost(query, identifier);
         maxScore = Math.min(1.0, maxScore + boost + 0.15);
         return { product: p, score: maxScore, source: 'local' };
-    }).filter(m => m.score > 0.65);
+    });
 
     // enrich local with OFF data
     await scoring.enrichLocalProductsWithOFF(scoredLocal, { useLiveOFF });
@@ -330,23 +336,8 @@ export async function findSuggestions(query, { allProducts = [], selectedStore =
             const pageSize = isSingleToken ? 100 : 50;
             const maxResults = isSingleToken ? 400 : 120; // backend will page up to this (server-capped)
             // Request server-side fair-sorted results to get good initial ordering from OFF
-            let offProducts = await off.fetchOffProducts(query, pageSize, maxResults, 'fair');
-            // generate simple permutations for single token queries to catch variants like 'haferdrink', 'hafer milk', 'oat milk'
-            if (isSingleToken) {
-                const t = coreTokens[0];
-                const perms = [t, t + ' drink', t + ' milch', 'hafer ' + t, t + ' drink', 'oat ' + t, t + ' drink barista', t + ' barista'].filter(Boolean);
-                // append permutations to results by fetching small sets
-                for (const p of perms) {
-                    if (p.toLowerCase() === query.toLowerCase()) continue;
-                    try {
-                        const res = await off.fetchOffProducts(p, 60, 120, 'fair');
-                        if (res && res.length) {
-                            const existing = new Set(offProducts.map(x => x.code));
-                            for (const r of res) if (!existing.has(r.code)) { offProducts.push(r); existing.add(r.code); }
-                        }
-                    } catch (e) { /* ignore */ }
-                }
-            }
+            let offProducts = await off.fetchOffProducts(query, pageSize, maxResults, '');
+            // alternatives (permutations/morphology) are disabled — rely on the initial OFF fetch only
             console.log(`matcher.findSuggestions: OFF initial returned ${offProducts.length} products`);
             // Heuristic filter: keep only OFF products that contain one of the anchor terms in
             // product name, brands, categories or stores fields to reduce noise from broad text matches.
