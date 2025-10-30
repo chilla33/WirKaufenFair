@@ -290,6 +290,10 @@ except Exception:
     pass
 app.include_router(store_router)
 
+# Include community routes (Overpass/OSM proxy)
+from .community_routes import router as community_router
+app.include_router(community_router)
+
 # Create a ProductLocation from Open Food Facts product payload
 @app.post('/api/v1/product_locations/from_off', response_model=product_schemas.ProductLocation)
 def create_product_from_off(payload: dict = Body(...), db: Session = Depends(get_db)):

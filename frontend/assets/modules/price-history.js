@@ -16,6 +16,7 @@ export function showPriceHistory(productName, priceHistory, currentPrice) {
     if (window.priceChart) {
         window.priceChart.destroy();
     }
+    const accent = (getComputedStyle(document.documentElement).getPropertyValue('--accent') || '#0ea5e9').trim();
     window.priceChart = new Chart(ctx, {
         type: 'line',
         data: {
@@ -23,8 +24,8 @@ export function showPriceHistory(productName, priceHistory, currentPrice) {
             datasets: [{
                 label: 'Preis (EUR)',
                 data: prices,
-                borderColor: '#0ea5e9',
-                backgroundColor: 'rgba(14, 165, 233, 0.1)',
+                borderColor: accent,
+                backgroundColor: 'rgba(14,165,233,0.08)',
                 tension: 0.3,
                 fill: true
             }]

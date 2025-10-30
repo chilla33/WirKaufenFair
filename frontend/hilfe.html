@@ -642,7 +642,10 @@ Gesamtsumme: ca. 7.97 €</code>
                 updateThemeIcon(savedTheme);
             } else {
                 const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-                updateThemeIcon(prefersDark ? 'dark' : 'light');
+                // ensure a concrete data-theme attribute is set so toggleTheme can read current value
+                const initial = prefersDark ? 'dark' : 'light';
+                document.documentElement.setAttribute('data-theme', initial);
+                updateThemeIcon(initial);
             }
         }
 

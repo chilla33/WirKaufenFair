@@ -107,21 +107,13 @@ function wireClearButton() {
 async function populateStoreSelect() {
     const container = document.getElementById('custom-store-dropdown');
     if (!container) return;
-    // Ensure label remains (don't replace container content)
-    let labelEl = document.getElementById('store-selected-label');
-    if (!labelEl) {
-        labelEl = document.createElement('div');
-        labelEl.id = 'store-selected-label';
-        labelEl.style.cssText = 'width:100%;padding:10px;border-radius:6px;border:1px solid #e5e7eb;font-size:16px;background:#fff;cursor:pointer;user-select:none;';
-        labelEl.textContent = 'Laden auswählen...';
-        container.appendChild(labelEl);
-    }
+    // The UI contains a single input (#store-search-input) used for search and showing the selected store.
     // remove existing list if present
     let listDiv = container.querySelector('.custom-dropdown-list');
     if (listDiv) listDiv.remove();
     listDiv = document.createElement('div');
     listDiv.className = 'custom-dropdown-list';
-    listDiv.innerHTML = '<div class="dropdown-item" style="color:#64748b;cursor:default;">Laden auswählen...</div><div class="dropdown-item">Läden werden geladen...</div>';
+    listDiv.innerHTML = '<div class="dropdown-item" style="color:var(--text-muted);cursor:default;">Laden auswählen...</div><div class="dropdown-item">Läden werden geladen...</div>';
     container.appendChild(listDiv);
 
     // Wire store search input
@@ -251,7 +243,7 @@ async function populateStoreSelect() {
     const stores = await storeApi.loadStores();
     window._lastFetchedStores = stores || [];
     if (!stores || stores.length === 0) {
-        container.innerHTML = '<div class="custom-dropdown-list"><div class="dropdown-item" style="color:#64748b;cursor:default;">Laden auswählen...</div><div class="dropdown-item">(Keine Läden gefunden)</div></div>';
+        container.innerHTML = '<div class="custom-dropdown-list"><div class="dropdown-item" style="color:var(--text-muted);cursor:default;">Laden auswählen...</div><div class="dropdown-item">(Keine Läden gefunden)</div></div>';
         return;
     }
     // Entfernung berechnen (falls Standort verfügbar)
@@ -300,7 +292,7 @@ async function populateStoreSelect() {
         }
     }
     // Favoriten zuerst
-    let html = '<div class="custom-dropdown-list"><div class="dropdown-item" style="color:#64748b;cursor:default;">Laden auswählen...</div>';
+    let html = '<div class="custom-dropdown-list"><div class="dropdown-item" style="color:var(--text-muted);cursor:default;">Laden auswählen...</div>';
     if (favorites.length > 0) {
         const favStores = stores.filter(s => favorites.includes(String(s.osm_id)));
         favStores.sort(storeSort);
@@ -477,10 +469,13 @@ function hideStoreDetail() {
 
 // Hilfsfunktion: Aktuelle Auswahl im Label anzeigen
 function updateStoreSelectedLabel(store) {
-    const label = document.getElementById('store-selected-label');
-    if (!label) return;
+    const input = document.getElementById('store-search-input');
+    const chip = document.getElementById('store-chip');
+    const chipText = document.getElementById('store-chip-text');
+    if (!input) return;
     if (!store) {
-        label.textContent = 'Laden auswählen...';
+        input.value = '';
+        input.placeholder = 'Laden suchen (Name eingeben)';
         return;
     }
     let name = store.full_name || store.chain || 'Unbekannt';
@@ -498,7 +493,8 @@ function updateStoreSelectedLabel(store) {
     let labelText = name;
     if (addr.trim()) labelText += ' – ' + addr.trim();
     if (store.distance != null) labelText += ` (${store.distance.toFixed(1)} km)`;
-    label.textContent = labelText;
+    input.value = '';
+    input.placeholder = labelText;
 }
 
 // Hilfsfunktion: Finde Store anhand von full_name ODER osm_id
@@ -512,17 +508,32 @@ function getSelectedStoreObj() {
 
 // Dropdown-Trigger: Klick auf Label zeigt Liste an
 window.addEventListener('DOMContentLoaded', () => {
-    const label = document.getElementById('store-selected-label');
+    const clearBtn = document.getElementById('store-clear-btn');
     const container = document.getElementById('custom-store-dropdown');
-    if (label && container) {
-        label.addEventListener('click', () => {
-            const list = container.querySelector('.custom-dropdown-list');
-            if (list) list.style.display = '';
+    const storeSelector = document.getElementById('store-selector');
+    const storeSearch = document.getElementById('store-search-input');
+    if (storeSearch && container) {
+        storeSearch.addEventListener('focus', () => { const list = container.querySelector('.custom-dropdown-list'); if (list) list.style.display = ''; if (storeSelector) storeSelector.classList.add('active'); });
+        storeSearch.addEventListener('click', () => { const list = container.querySelector('.custom-dropdown-list'); if (list) list.style.display = ''; });
+        // if user types in the input while a store was selected, clear the selection and treat as search
+        storeSearch.addEventListener('input', (e) => {
+            if (selectedStore) {
+                selectedStore = '';
+                try { localStorage.removeItem('wirkaufenfair_store'); } catch (err) { /* ignore */ }
+                // keep current input value (user typing), but update render context
+                updateContext();
+                populateStoreSelect();
+            }
         });
+    }
+    if (clearBtn) {
+        clearBtn.addEventListener('click', (e) => { e.stopPropagation(); selectedStore = ''; localStorage.removeItem('wirkaufenfair_store'); if (storeSearch) { storeSearch.value = ''; storeSearch.placeholder = 'Laden suchen (Name eingeben)'; } updateStoreSelectedLabel(null); populateStoreSelect(); });
+    }
+    if (storeSearch && container) {
+        storeSearch.addEventListener('focus', () => { const list = container.querySelector('.custom-dropdown-list'); if (list) list.style.display = ''; if (storeSelector) storeSelector.classList.add('active'); });
     }
     // Nach Laden der Seite: Wenn ein Store gespeichert ist, Label setzen
     const storeObj = (window._lastFetchedStores || []).find(s => s.full_name === selectedStore);
-    // DEBUG: Log selectedStore und storeObj
     console.log('selectedStore:', selectedStore);
     console.log('getSelectedStoreObj():', storeObj);
     updateStoreSelectedLabel(storeObj);

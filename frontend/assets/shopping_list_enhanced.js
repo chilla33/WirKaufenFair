@@ -85,6 +85,7 @@ function showPriceHistory(productName, priceHistory, currentPrice) {
         window.priceChart.destroy();
     }
 
+    const accent = (getComputedStyle(document.documentElement).getPropertyValue('--accent') || 'rgb(14,165,233)').trim();
     window.priceChart = new Chart(ctx, {
         type: 'line',
         data: {
@@ -92,8 +93,8 @@ function showPriceHistory(productName, priceHistory, currentPrice) {
             datasets: [{
                 label: 'Preis (EUR)',
                 data: prices,
-                borderColor: '#0ea5e9',
-                backgroundColor: 'rgba(14, 165, 233, 0.1)',
+                borderColor: accent,
+                backgroundColor: 'rgba(14, 165, 233, 0.08)',
                 tension: 0.3,
                 fill: true
             }]
@@ -193,7 +194,7 @@ async function renderListWithPrices() {
 
             // Calculate per-unit price (kg/L)
             const perUnit = calculateUnitPrice(matched);
-            const perUnitStr = perUnit ? ` <span style="color:#94a3b8;font-size:11px;">(${perUnit.display})</span>` : '';
+            const perUnitStr = perUnit ? ` <span style="color:var(--text-muted);font-size:11px;">(${perUnit.display})</span>` : '';
 
             priceDisplay = `<div class="item-price">💰 ${totalPrice.toFixed(2)} EUR ${item.calculation ? `(${unitPrice.toFixed(2)} EUR/Stk)` : ''}${perUnitStr}</div>`;
 
@@ -206,7 +207,7 @@ async function renderListWithPrices() {
 
             // Calculate per-unit price (kg/L)
             const perUnit = calculateUnitPrice(matched);
-            const perUnitStr = perUnit ? ` <span style="color:#94a3b8;font-size:11px;">(≈ ${perUnit.display})</span>` : '';
+            const perUnitStr = perUnit ? ` <span style="color:var(--text-muted);font-size:11px;">(≈ ${perUnit.display})</span>` : '';
 
             priceDisplay = `<div class="item-price">💰 ≈ ${totalPrice.toFixed(2)} EUR ${item.calculation ? `(≈ ${unitPrice.toFixed(2)} EUR/Stk)` : ''}${perUnitStr}</div>`;
         }
@@ -217,21 +218,21 @@ async function renderListWithPrices() {
             details = `
                 <div class="item-details">
                     <span class="item-location">📍 ${location || 'Standort unbekannt'}</span>
-                    ${matched.photo_url ? `<a href="${matched.photo_url}" target="_blank" style="margin-left:8px;color:#0ea5e9;">🖼️ Foto</a>` : ''}
-                    <span style="margin-left:8px;color:#64748b;">👍 ${matched.upvotes} | 👎 ${matched.downvotes}</span>
-                    ${matched.status === 'verified' ? '<span style="margin-left:8px;color:#22c55e;">✅ Verifiziert</span>' : ''}
+                    ${matched.photo_url ? `<a href="${matched.photo_url}" target="_blank" style="margin-left:8px;color:var(--accent);">🖼️ Foto</a>` : ''}
+                    <span style="margin-left:8px;color:var(--text-muted);">👍 ${matched.upvotes} | 👎 ${matched.downvotes}</span>
+                    ${matched.status === 'verified' ? '<span style="margin-left:8px;color:var(--success);">✅ Verifiziert</span>' : ''}
                 </div>
             `;
         } else {
-            details = `<div class="item-details" style="color:#ef4444;">❌ Kein Produkt für "${item.query}" in diesem Laden gefunden.</div>`;
+            details = `<div class="item-details" style="color:var(--danger);">❌ Kein Produkt für "${item.query}" in diesem Laden gefunden.</div>`;
         }
 
-        const sourceBadge = item.matchedSource === 'off' ? '<span class="badge" style="background:#64748b;margin-left:8px;">OFF</span>' : '';
-        return `
+    const sourceBadge = item.matchedSource === 'off' ? '<span class="badge" style="background:var(--text-muted);margin-left:8px;">OFF</span>' : '';
+                return `
             <div class="list-item ${matchedClass}">
                 <div class="item-text">
                     <div class="item-query">${queryDisplay} ${sourceBadge}</div>
-                    ${matched ? `<div style="font-size:14px;color:#64748b;margin-top:2px;">→ ${matched.product_identifier}</div>` : ''}
+                    ${matched ? `<div style="font-size:14px;color:var(--text-muted);margin-top:2px;">→ ${matched.product_identifier}</div>` : ''}
                     ${calcDisplay}
                     ${priceDisplay}
                     ${details}

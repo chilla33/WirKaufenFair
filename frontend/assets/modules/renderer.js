@@ -28,6 +28,7 @@ export function showPriceHistory(productName, priceHistory, currentPrice) {
     const modalTitle = document.getElementById('modal-title');
     const canvas = document.getElementById('price-chart');
     if (!modal || !modalTitle || !canvas) return;
+    const accent = (getComputedStyle(document.documentElement).getPropertyValue('--accent') || 'rgb(14,165,233)').trim();
     modalTitle.textContent = `Preisverlauf: ${productName}`;
     modal.classList.add('active');
     const history = priceHistory || [];
@@ -40,13 +41,13 @@ export function showPriceHistory(productName, priceHistory, currentPrice) {
         if (window.Chart) {
             window.priceChart = new window.Chart(ctx, {
                 type: 'line',
-                data: { labels, datasets: [{ label: 'Preis (EUR)', data: prices, borderColor: '#0ea5e9', backgroundColor: 'rgba(14,165,233,0.1)', tension: 0.3, fill: true }] },
+                data: { labels, datasets: [{ label: 'Preis (EUR)', data: prices, borderColor: accent, backgroundColor: 'rgba(14,165,233,0.08)', tension: 0.3, fill: true }] },
                 options: { responsive: true, plugins: { legend: { display: false } } }
             });
         } else {
             // Fallback: render simple text
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.fillStyle = '#000';
+            ctx.fillStyle = (getComputedStyle(document.documentElement).getPropertyValue('--text') || 'black').trim();
             ctx.fillText('Chart.js nicht geladen', 10, 20);
         }
     } catch (e) {
@@ -85,34 +86,34 @@ export function renderListWithPrices(list, store) {
     }
     container.innerHTML = list.map((item, i) => {
         const title = item.text || (item.off && (item.off.product_name || item.off.display_name)) || item.query || 'Unbenannt';
-        const qty = item.quantity ? `<span style="color:#64748b;margin-left:8px;font-weight:600;">${item.quantity}</span>` : '';
-        const img = (item.off && (item.off.image_small_url || item.off.image_url)) ? `<img src="${item.off.image_small_url || item.off.image_url}" style="width:56px;height:56px;object-fit:cover;border-radius:6px;">` : `<div style="width:56px;height:56px;border-radius:6px;background:#e5e7eb;display:flex;align-items:center;justify-content:center;">📦</div>`;
+    const qty = item.quantity ? `<span style="color:var(--text-muted);margin-left:8px;font-weight:600;">${item.quantity}</span>` : '';
+    const img = (item.off && (item.off.image_small_url || item.off.image_url)) ? `<img src="${item.off.image_small_url || item.off.image_url}" style="width:56px;height:56px;object-fit:cover;border-radius:6px;">` : `<div style="width:56px;height:56px;border-radius:6px;background:var(--input-bg);display:flex;align-items:center;justify-content:center;border:1px solid var(--border);">📦</div>`;
         const nutri = item.off && (item.off.nutriscore_grade || item.off.nutriscore) ? (item.off.nutriscore_grade || item.off.nutriscore) : '-';
         const eco = item.off && (item.off.ecoscore_grade || item.off.ecoscore) ? (item.off.ecoscore_grade || item.off.ecoscore) : '-';
         const fairScoreObj = item.off ? (item.off.__fairScore != null ? { total: Number(item.off.__fairScore) } : scoring.computeFairComponents(item.off, 'off')) : null;
         const fairScore = fairScoreObj ? (fairScoreObj.total || 0) : null;
         let fairBadge = '';
         if (fairScore != null) {
-            let bg = '#ecfdf5';
-            let color = '#065f46';
-            if (fairScore >= 0.75) { bg = '#ecfdf5'; color = '#065f46'; }
-            else if (fairScore >= 0.5) { bg = '#fffbeb'; color = '#854d0e'; }
-            else { bg = '#fff7f2'; color = '#9a3412'; }
+            // Use theme-aware colors: success/warning/danger with subtle background tints
+            let bgStyle = 'background:rgba(22,163,74,0.12); color:var(--success);';
+            if (fairScore >= 0.75) { bgStyle = 'background:rgba(22,163,74,0.12); color:var(--success);'; }
+            else if (fairScore >= 0.5) { bgStyle = 'background:rgba(245,158,11,0.08); color:var(--muted);'; }
+            else { bgStyle = 'background:rgba(239,68,68,0.08); color:var(--danger);'; }
             const tooltip = fairScoreObj ? `Eco:${fairScoreObj.ecoScore.toFixed(2)} Nutri:${fairScoreObj.nutriScore.toFixed(2)} Ethics:${(fairScoreObj.ethicsScore || 0).toFixed(2)}` : '';
-            fairBadge = `<div title="${tooltip}" style="font-size:13px;color:${color};font-weight:700;background:${bg};padding:6px 8px;border-radius:6px;">${fairScore.toFixed(2)}</div>`;
+            fairBadge = `<div title="${tooltip}" style="font-size:13px;font-weight:700;${bgStyle}padding:6px 8px;border-radius:6px;">${fairScore.toFixed(2)}</div>`;
         }
         const labelsArr = item.off ? normalizeLabels(item.off.labels || item.off.labels_tags) : [];
-        const labels = labelsArr.slice(0, 4).map(l => `<span style="background:#eef2ff;padding:4px 8px;border-radius:6px;margin-right:6px;font-size:12px;">${l}</span>`).join('');
+    const labels = labelsArr.slice(0, 4).map(l => `<span style="background:rgba(14,165,233,0.06);padding:4px 8px;border-radius:6px;margin-right:6px;font-size:12px;">${l}</span>`).join('');
         const meta = item.off ? `<details style="margin-top:8px"><summary style="cursor:pointer">OFF Meta</summary><pre style="max-height:240px;overflow:auto">${JSON.stringify(item.off, null, 2)}</pre></details>` : '';
         return `
-                    <div class="list-item" style="padding:12px;border-bottom:1px solid #eef2f6;display:flex;">
+                    <div class="list-item" style="padding:12px;border-bottom:1px solid var(--border);display:flex;">
                         <div style="margin-right:12px">${img}</div>
                         <div style="flex:1">
                             <div style="display:flex;align-items:center;justify-content:space-between;">
                                 <div style="font-weight:700;font-size:16px">${title}${qty}</div>
-                                <div style="text-align:right"><div style="color:#64748b;font-size:13px">Nutri: ${nutri} • Eco: ${eco}</div><div style="margin-top:6px">${fairBadge}</div></div>
+                                <div style="text-align:right"><div style="color:var(--text-muted);font-size:13px">Nutri: ${nutri} • Eco: ${eco}</div><div style="margin-top:6px">${fairBadge}</div></div>
                             </div>
-                            <div style="margin-top:6px;color:#475569;font-size:13px">${labels}</div>
+                            <div style="margin-top:6px;color:var(--text-muted);font-size:13px">${labels}</div>
                             ${meta}
                         </div>
                     </div>
@@ -163,26 +164,26 @@ export function renderList() {
         return;
     }
     const storeHint = !selectedStore
-        ? '<div style="background:#fef3c7;padding:12px;border-radius:8px;margin-bottom:16px;"><strong>💡 Tipp:</strong> Wähle einen Laden für Preise & Verfügbarkeit oder führe eine allgemeine Liste.</div>'
+        ? '<div style="background:rgba(245,158,11,0.08);padding:12px;border-radius:8px;margin-bottom:16px;border:1px solid var(--border);"><strong>💡 Tipp:</strong> Wähle einen Laden für Preise & Verfügbarkeit oder führe eine allgemeine Liste.</div>'
         : '';
     container.innerHTML = storeHint + shoppingList.map((item, i) => {
         const title = item.text || (item.off && (item.off.product_name || item.off.display_name)) || item.query || 'Unbenannt';
-        const qty = item.quantity ? `<span style="color:#64748b;margin-left:8px;font-weight:600;">${item.quantity}</span>` : '';
-        const img = (item.off && (item.off.image_small_url || item.off.image_url || item.off.image_front_small_url)) ? `<img src="${item.off.image_small_url || item.off.image_url || item.off.image_front_small_url}" style="width:56px;height:56px;object-fit:cover;border-radius:6px;">` : `<div style="width:56px;height:56px;border-radius:6px;background:#e5e7eb;display:flex;align-items:center;justify-content:center;">📦</div>`;
+    const qty = item.quantity ? `<span style="color:var(--text-muted);margin-left:8px;font-weight:600;">${item.quantity}</span>` : '';
+    const img = (item.off && (item.off.image_small_url || item.off.image_url || item.off.image_front_small_url)) ? `<img src="${item.off.image_small_url || item.off.image_url || item.off.image_front_small_url}" style="width:56px;height:56px;object-fit:cover;border-radius:6px;">` : `<div style="width:56px;height:56px;border-radius:6px;background:var(--input-bg);display:flex;align-items:center;justify-content:center;border:1px solid var(--border);">📦</div>`;
         const nutri = item.off && (item.off.nutriscore_grade || item.off.nutriscore) ? (item.off.nutriscore_grade || item.off.nutriscore) : '-';
         const eco = item.off && (item.off.ecoscore_grade || item.off.ecoscore) ? (item.off.ecoscore_grade || item.off.ecoscore) : '-';
         const labelsArr = item.off ? normalizeLabels(item.off.labels || item.off.labels_tags) : [];
-        const labels = labelsArr.slice(0, 4).map(l => `<span style="background:#eef2ff;padding:4px 8px;border-radius:6px;margin-right:6px;font-size:12px;">${l}</span>`).join('');
+    const labels = labelsArr.slice(0, 4).map(l => `<span style="background:rgba(14,165,233,0.06);padding:4px 8px;border-radius:6px;margin-right:6px;font-size:12px;">${l}</span>`).join('');
         const meta = item.off ? `<details style="margin-top:8px"><summary style="cursor:pointer">OFF Meta</summary><pre style="max-height:240px;overflow:auto">${JSON.stringify(item.off, null, 2)}</pre></details>` : '';
         return `
-                    <div class="list-item" style="padding:12px;border-bottom:1px solid #eef2f6;display:flex;">
+                    <div class="list-item" style="padding:12px;border-bottom:1px solid var(--border);display:flex;">
                         <div style="margin-right:12px">${img}</div>
                         <div style="flex:1">
                             <div style="display:flex;align-items:center;justify-content:space-between;">
                                 <div style="font-weight:700;font-size:16px">${title}${qty}</div>
-                                <div style="color:#64748b;font-size:13px">Nutri: ${nutri} • Eco: ${eco}</div>
+                                <div style="color:var(--text-muted);font-size:13px">Nutri: ${nutri} • Eco: ${eco}</div>
                             </div>
-                            <div style="margin-top:6px;color:#475569;font-size:13px">${labels}</div>
+                            <div style="margin-top:6px;color:var(--text-muted);font-size:13px">${labels}</div>
                             ${meta}
                         </div>
                     </div>
@@ -217,7 +218,7 @@ export function renderTotalSummary() {
     totalContainer.innerHTML = `
         <div class="total-summary">
             <strong>Gesamtsumme:</strong> ca. ${totalPrice.toFixed(2)} €
-            <span style="font-size:12px;color:#888;">(${confirmedCount} bestätigt${hasEstimates ? `, ${estimatedCount} geschätzt` : ''})</span>
+            <span style="font-size:12px;color:var(--text-muted);">(${confirmedCount} bestätigt${hasEstimates ? `, ${estimatedCount} geschätzt` : ''})</span>
         </div>
     `;
 }

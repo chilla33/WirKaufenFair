@@ -16,7 +16,7 @@ async function fetchPL() {
     data.forEach(it => {
         const tr = document.createElement('tr');
         const verifiedBadge = it.status === 'verified' ? `<span class="badge verified">Verified</span>` : `<span class="badge suggested">Suggested</span>`;
-        const verifierInfo = it.verified_by ? `<div style="font-size:12px;color:#475569">by ${it.verified_by} @ ${it.verified_at || it.created_at}</div>` : '';
+    const verifierInfo = it.verified_by ? `<div style="font-size:12px;color:var(--text-muted)">by ${it.verified_by} @ ${it.verified_at || it.created_at}</div>` : '';
         tr.innerHTML = `
             <td>${it.id}</td>
             <td>${it.product_identifier}</td>

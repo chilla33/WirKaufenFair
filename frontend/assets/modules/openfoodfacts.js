@@ -1,9 +1,10 @@
 // openfoodfacts.js
 // OpenFoodFacts API Integration für WirKaufenFair
 
-export async function fetchOffProducts(query, limit = 20) {
+export async function fetchOffProducts(query, limit = 50, max_results = null, sort_by = 'fair') {
     try {
-        const url = `/api/v1/openfoodfacts/search?query=${encodeURIComponent(query)}&page_size=${limit}`;
+        let url = `/api/v1/openfoodfacts/search?query=${encodeURIComponent(query)}&page_size=${limit}&sort_by=${encodeURIComponent(sort_by)}`;
+        if (max_results) url += `&max_results=${encodeURIComponent(max_results)}`;
         const res = await fetch(url);
         if (!res.ok) throw new Error('OFF search failed');
         const data = await res.json();

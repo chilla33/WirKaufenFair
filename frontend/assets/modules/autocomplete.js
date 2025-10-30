@@ -41,7 +41,7 @@ export function setupItemAutocomplete(inputEl, onSelect) {
         if (!items || items.length === 0) {
             const acEl2 = document.getElementById('item-autocomplete');
             if (acEl2) {
-                acEl2.innerHTML = `<div style="padding:8px;color:#64748b;">Keine Produktvorschläge gefunden (OFF).</div>`;
+                acEl2.innerHTML = `<div style="padding:8px;color:var(--text-muted);">Keine Produktvorschläge gefunden (OFF).</div>`;
                 acEl2.style.display = 'block';
             }
             return;
@@ -51,7 +51,7 @@ export function setupItemAutocomplete(inputEl, onSelect) {
             const title = it.product_name || it.generic_name || it.display_name || (it.brands && it.brands.split(',')[0]) || it.code || '';
             return `
             <div class="ac-item" data-title="${(title).replace(/"/g, '&quot;')}" data-code="${it.code || ''}">
-                ${it.image_small_url ? `<img src="${it.image_small_url}" onerror="this.style.display='none'" alt="" style="width:40px;height:40px;border-radius:4px;object-fit:cover;">` : '<div style="width:40px;height:40px;border-radius:4px;background:#e5e7eb;display:flex;align-items:center;justify-content:center;">📦</div>'}
+                ${it.image_small_url ? `<img src="${it.image_small_url}" onerror="this.style.display='none'" alt="" style="width:40px;height:40px;border-radius:4px;object-fit:cover;">` : '<div style="width:40px;height:40px;border-radius:4px;background:var(--input-bg);display:flex;align-items:center;justify-content:center;">📦</div>'}
                 <div>
                     <div class="ac-title">${title}</div>
                     ${it.code ? `<div class="ac-sub">${it.code}</div>` : ''}

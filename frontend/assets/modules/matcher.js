@@ -90,6 +90,104 @@ export function expandQueryWithCategories(query) {
     return Array.from(expanded);
 }
 
+// Small, curated morphological expansions for common stems (German + English)
+// Used only for single-token queries to generate productive variants like
+// 'hafer' -> ['hafermilch','haferdrink','oat milk'] which OFF often indexes
+export const MORPHOLOGY = {
+    'hafer': ['hafermilch', 'haferdrink', 'oat milk', 'oatmilk', 'oat-milk', 'hafermilch barista'],
+    'mandel': ['mandelmilch', 'mandeldrink', 'almond milk', 'almondmilk'],
+    'soja': ['sojamilch', 'sojadrink', 'soy milk', 'soya milk'],
+    'reis': ['reismilch', 'reisdink', 'rice milk', 'ricemilk']
+};
+
+export function morphologicalExpansions(token) {
+    if (!token) return [];
+    const t = token.toLowerCase().trim();
+    const results = new Set();
+    // curated map
+    if (MORPHOLOGY[t]) MORPHOLOGY[t].forEach(x => results.add(x));
+    // generic heuristic: token + common suffixes (safe fallback)
+    const suffixes = ['milch', 'drink', 'drink barista', 'barista', 'milk'];
+    suffixes.forEach(suf => results.add(`${t} ${suf}`));
+    // prefixes like 'oat <token>' for english variants
+    const prefixes = ['oat', 'almond', 'soy', 'rice'];
+    prefixes.forEach(pre => results.add(`${pre} ${t}`));
+    // return unique, prefer shorter normalized forms
+    return Array.from(results).filter(x => x && x.length > 2);
+}
+
+// Boost when product fields match strong regex patterns derived from the token
+// For single-token queries we prefer whole-word or compound matches like 'hafermilch'
+export function boostedRegexBoost(token, product) {
+    if (!token || !product) return 0;
+    const t = token.toLowerCase().trim().replace(/[.*+?^${}()|[\]\\]/g, '');
+    if (!t) return 0;
+    // build a few strong regexes: whole word, token+suffix, prefix+token, compound
+    const patterns = [
+        new RegExp(`\\b${t}\\b`, 'i'),
+        new RegExp(`\\b${t}(?:milch|drink|-?milk|milk|-?drink)\\b`, 'i'),
+        new RegExp(`\\b(?:oat|almond|soy|rice)\\s+${t}\\b`, 'i'),
+        new RegExp(`\\b${t}[- ]?(?:milch|drink|milk)\\b`, 'i')
+    ];
+    const hay = [product.product_name, product.product_name_de, product.generic_name, product.brands, product.stores, product.categories, Array.isArray(product.categories_tags) ? product.categories_tags.join(' ') : '']
+        .filter(Boolean)
+        .join(' ').toLowerCase();
+    for (const p of patterns) {
+        try {
+            if (p.test(hay)) {
+                // strong hit -> decent boost
+                return 0.20;
+            }
+        } catch (e) {
+            // regex error - ignore
+        }
+    }
+    return 0;
+}
+
+// Strict anchor match helper: only consider strong text fields to avoid noisy matches
+// Fields considered: product_name, product_name_de, generic_name, brands
+export function strictAnchorMatch(product, anchorLower) {
+    const fields = {
+        product_name: product.product_name,
+        product_name_de: product.product_name_de,
+        generic_name: product.generic_name,
+        brands: product.brands
+    };
+    for (const a of anchorLower) {
+        if (!a) continue;
+        for (const [fname, val] of Object.entries(fields)) {
+            if (!val) continue;
+            try {
+                if (val.toLowerCase().includes(a)) {
+                    return { matched: true, field: fname };
+                }
+            } catch (e) {
+                // ignore malformed field
+            }
+        }
+    }
+    return { matched: false };
+}
+
+// Diagnostic helper: fetch OFF products and show how many are kept vs filtered by strict anchor
+export async function runAnchorFilterTest(query, pageSize = 60, maxResults = 180) {
+    console.log('runAnchorFilterTest: fetching OFF products for', query);
+    const offProducts = await off.fetchOffProducts(query, pageSize, maxResults, 'fair');
+    console.log('runAnchorFilterTest: OFF returned', offProducts.length);
+    const anchorLower = getCoreQueryTokens(query).map(a => a.toLowerCase()).concat(...getCoreQueryTokens(query).flatMap(t => expandQueryWithSynonyms(t))).map(x => x.toLowerCase());
+    const kept = [];
+    const filtered = [];
+    for (const p of offProducts) {
+        const r = strictAnchorMatch(p, anchorLower);
+        if (r.matched) kept.push({ p, field: r.field }); else filtered.push(p);
+    }
+    console.log(`runAnchorFilterTest: kept ${kept.length}, filtered ${filtered.length}`);
+    console.log('runAnchorFilterTest: examples kept:', kept.slice(0, 6).map(x => ({ name: x.p.product_name || x.p.product_name_de || x.p.generic_name, field: x.field })));
+    console.log('runAnchorFilterTest: examples filtered:', filtered.slice(0, 6).map(p => p.product_name || p.product_name_de || p.generic_name));
+    return { kept, filtered };
+}
+
 export function brandBoost(query, targetProduct) {
     const q = query.toLowerCase();
     const t = targetProduct.toLowerCase();
@@ -228,8 +326,11 @@ export async function findSuggestions(query, { allProducts = [], selectedStore =
             console.log('matcher.findSuggestions: fetching OFF for', query);
             // If query is a single token, try a broader OFF fetch and permutations
             const isSingleToken = (coreTokens.length === 1);
-            const pageSize = isSingleToken ? 60 : 30;
-            let offProducts = await off.fetchOffProducts(query, pageSize);
+            // Request more results for single-token queries to maximize recall
+            const pageSize = isSingleToken ? 100 : 50;
+            const maxResults = isSingleToken ? 400 : 120; // backend will page up to this (server-capped)
+            // Request server-side fair-sorted results to get good initial ordering from OFF
+            let offProducts = await off.fetchOffProducts(query, pageSize, maxResults, 'fair');
             // generate simple permutations for single token queries to catch variants like 'haferdrink', 'hafer milk', 'oat milk'
             if (isSingleToken) {
                 const t = coreTokens[0];
@@ -238,7 +339,7 @@ export async function findSuggestions(query, { allProducts = [], selectedStore =
                 for (const p of perms) {
                     if (p.toLowerCase() === query.toLowerCase()) continue;
                     try {
-                        const res = await off.fetchOffProducts(p, 20);
+                        const res = await off.fetchOffProducts(p, 60, 120, 'fair');
                         if (res && res.length) {
                             const existing = new Set(offProducts.map(x => x.code));
                             for (const r of res) if (!existing.has(r.code)) { offProducts.push(r); existing.add(r.code); }
@@ -247,41 +348,110 @@ export async function findSuggestions(query, { allProducts = [], selectedStore =
                 }
             }
             console.log(`matcher.findSuggestions: OFF initial returned ${offProducts.length} products`);
-            // If OFF returned few results, try expanded queries (synonyms / categories) to increase recall
-            if ((offProducts.length || 0) < 8) {
-                const alts = expandedQueries.slice(0, 6); // at most 6 alternatives
-                for (const alt of alts) {
-                    if (!alt || alt.toLowerCase() === query.toLowerCase()) continue;
+            // Heuristic filter: keep only OFF products that contain one of the anchor terms in
+            // product name, brands, categories or stores fields to reduce noise from broad text matches.
+            const anchorLower = anchorList.map(a => a.toLowerCase());
+            const rawBefore = offProducts.length;
+            // Use strict anchor matching (product_name / product_name_de / generic_name / brands)
+            const kept = [];
+            const filtered = [];
+            for (const p of offProducts) {
+                const r = strictAnchorMatch(p, anchorLower);
+                if (r.matched) {
+                    p.__matchedField = r.field;
+                    kept.push(p);
+                } else {
+                    filtered.push(p);
+                }
+            }
+            offProducts = kept;
+            console.log(`matcher.findSuggestions: OFF filtered to ${offProducts.length} products (from ${rawBefore}) by strict anchor presence`);
+            // If OFF returned few results, keep fetching additional permutations / morphological expansions
+            // until we have at least `desiredKept` strict-kept products or a safe maximum of requests.
+            const desiredKept = Math.max(8, needed || 8);
+            if ((offProducts.length || 0) < desiredKept) {
+                const existingCodes = new Set(offProducts.map(p => p.code));
+
+                // Build a prioritized list of extra queries: morphological expansions, permutations, expandedQueries
+                const extraQueries = [];
+                if (isSingleToken) {
+                    const stem = coreTokens[0];
+                    // morphological expansions (curated + heuristics)
+                    try { morphologicalExpansions(stem).forEach(x => extraQueries.push(x)); } catch (e) { }
+                    // permutations already computed earlier - include some variants
+                    const perms = [stem + ' drink', stem + ' milch', 'oat ' + stem, stem + ' barista', 'hafer ' + stem];
+                    perms.forEach(p => extraQueries.push(p));
+                }
+                // include synonyms/categories alternates but keep limited
+                expandedQueries.slice(0, 8).forEach(q => { if (q && q.toLowerCase() !== query.toLowerCase()) extraQueries.push(q); });
+
+                let extraRequests = 0;
+                const maxExtraRequests = 12;
+                for (const alt of extraQueries) {
+                    if (extraRequests >= maxExtraRequests) break;
+                    if (!alt) continue;
+                    const altLower = alt.toLowerCase();
+                    if (altLower === query.toLowerCase()) continue;
                     try {
-                        const altRes = await off.fetchOffProducts(alt, 20);
+                        extraRequests++;
+                        const altRes = await off.fetchOffProducts(alt, 80, 200);
                         if (altRes && altRes.length > 0) {
-                            console.log(`matcher.findSuggestions: OFF alt '${alt}' returned ${altRes.length}`);
-                            // merge unique products by code
-                            const existingCodes = new Set(offProducts.map(p => p.code));
+                            console.log(`matcher.findSuggestions: OFF extra '${alt}' returned ${altRes.length}`);
                             for (const p of altRes) {
-                                if (!existingCodes.has(p.code)) { offProducts.push(p); existingCodes.add(p.code); }
+                                if (!p || !p.code) continue;
+                                if (existingCodes.has(p.code)) continue;
+                                // check strict anchor match for this alt set as well
+                                const r = strictAnchorMatch(p, anchorLower);
+                                if (r.matched) {
+                                    p.__matchedField = r.field;
+                                    offProducts.push(p);
+                                    existingCodes.add(p.code);
+                                }
                             }
                         }
-                        // stop if we have enough
-                        if (offProducts.length >= 30) break;
                     } catch (e) {
-                        console.warn('matcher: alt OFF fetch failed for', alt, e);
+                        console.warn('matcher: extra OFF fetch failed for', alt, e);
                     }
+                    if ((offProducts.length || 0) >= desiredKept) break;
                 }
+                console.log(`matcher.findSuggestions: after extra fetches kept ${offProducts.length} products (desired ${desiredKept})`);
             }
             const scoredOff = offProducts.map(p => {
                 const identifier = p.product_identifier || p.product_name || '';
                 const idLower = identifier.toLowerCase();
                 if (shouldExcludeProduct(coreTokens, identifier)) return { product: p, score: 0, source: 'off' };
                 let maxScore = 0;
+                // base scoring from expandedQueries
                 expandedQueries.forEach(q => {
                     const score = fuzzyMatch(q, identifier, 0.5);
                     if (score > maxScore) maxScore = score;
                 });
+                // for single-token queries, also try morphological expansions (curated)
+                if (isSingleToken) {
+                    try {
+                        const morphs = morphologicalExpansions(coreTokens[0]);
+                        for (const m of morphs) {
+                            const s = fuzzyMatch(m, identifier, 0.45);
+                            if (s > maxScore) maxScore = s;
+                        }
+                    } catch (e) { /* ignore */ }
+                }
+                // brand boost
                 const boost = brandBoost(query, identifier);
                 maxScore = Math.min(1.0, maxScore + boost);
+                // boosted regex for strong compound matches
+                if (isSingleToken) {
+                    try {
+                        const regexBoost = boostedRegexBoost(coreTokens[0], p);
+                        maxScore = Math.min(1.0, maxScore + regexBoost);
+                    } catch (e) { /* ignore */ }
+                }
                 return { product: p, score: maxScore, source: 'off' };
             }).filter(m => m.score > (isSingleToken ? 0.50 : 0.60));
+            // For single-token queries, be more permissive to gather candidates to rank later
+            const scoredOffFiltered = isSingleToken ? scoredOff.filter(m => m.score > 0.40) : scoredOff.filter(m => m.score > 0.60);
+            console.log(`matcher.findSuggestions: scoredOff kept ${scoredOffFiltered.length} OFF candidates after permissive filter`);
+            candidates = candidates.concat(scoredOffFiltered);
             console.log(`matcher.findSuggestions: scoredOff kept ${scoredOff.length} OFF candidates`);
             candidates = candidates.concat(scoredOff);
         } catch (e) {

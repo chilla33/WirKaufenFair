@@ -14,15 +14,26 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadAllProducts();
 
     const storeSelect = document.getElementById('store-select');
+    const storeSearchInput = document.getElementById('store-search-input');
     const quantityInput = document.getElementById('quantity-input');
     const itemInput = document.getElementById('item-input');
     const addBtn = document.getElementById('add-btn');
     const clearBtn = document.getElementById('clear-btn');
 
-    storeSelect.addEventListener('change', (e) => {
-        selectedStore = e.target.value;
-        renderList();
-    });
+    if (storeSelect) {
+        storeSelect.addEventListener('change', (e) => {
+            selectedStore = e.target.value;
+            renderList();
+        });
+    } else if (storeSearchInput) {
+        // When using the unified single-input store field, read selection from placeholder/localStorage
+        try {
+            const persisted = localStorage.getItem('wirkaufenfair_store');
+            if (persisted) {
+                selectedStore = persisted;
+            }
+        } catch (e) { /* ignore */ }
+    }
 
     addBtn.addEventListener('click', () => addItem());
     itemInput.addEventListener('keypress', (e) => {
@@ -32,12 +43,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (e.key === 'Enter') itemInput.focus();
     });
 
-    clearBtn.addEventListener('click', () => {
+    if (clearBtn) {
+        clearBtn.addEventListener('click', () => {
         if (confirm('Einkaufsliste wirklich leeren?')) {
             shoppingList = [];
             renderList();
         }
-    });
+        });
+    }
 
     setupItemAutocomplete(itemInput);
 });
@@ -53,12 +66,16 @@ async function loadStores() {
         let stores = [...new Set([...staticStores, ...dbStores])].filter(Boolean).sort();
 
         const select = document.getElementById('store-select');
-        stores.forEach(store => {
-            const opt = document.createElement('option');
-            opt.value = store;
-            opt.textContent = store;
-            select.appendChild(opt);
-        });
+        if (select) {
+            stores.forEach(store => {
+                const opt = document.createElement('option');
+                opt.value = store;
+                opt.textContent = store;
+                select.appendChild(opt);
+            });
+        } else {
+            // no select present (single-input UI); nothing to append
+        }
     } catch (err) {
         console.error('Error loading stores:', err);
     }
@@ -429,7 +446,7 @@ function setupItemAutocomplete(inputEl) {
         if (!items || items.length === 0) { hide(); return; }
         const html = items.map(it => `
             <div class="ac-item" data-title="${(it.display || '').replace(/"/g, '&quot;')}">
-                ${it.image_url ? `<img src="${it.image_url}" onerror="this.style.display='none'" alt="" style="width:40px;height:40px;border-radius:4px;object-fit:cover;">` : '<div style="width:40px;height:40px;border-radius:4px;background:#e5e7eb;display:flex;align-items:center;justify-content:center;">📦</div>'}
+                ${it.image_url ? `<img src="${it.image_url}" onerror="this.style.display='none'" alt="" style="width:40px;height:40px;border-radius:4px;object-fit:cover;">` : '<div style="width:40px;height:40px;border-radius:4px;background:var(--input-bg);display:flex;align-items:center;justify-content:center;">📦</div>'}
                 <div>
                     <div class="ac-title">${it.display || ''}</div>
                     ${it.barcode ? `<div class="ac-sub">${it.barcode}</div>` : ''}
@@ -466,8 +483,8 @@ function addItem() {
 
     if (!query) return;
     if (!selectedStore) {
-        alert('Bitte wähle zuerst einen Laden aus!');
-        return;
+        // Do not block adding items when no store selected. Persist under a general list key.
+        console.warn('Kein Laden ausgewählt — Artikel wird unter Allgemein gespeichert');
     }
 
     const needed = parseQuantity(quantityStr);
@@ -501,10 +518,10 @@ async function showPendingSelection() {
         qtyDisplay = `<strong>${formatUnit(pendingItem.needed.amount, pendingItem.needed.unit)}</strong> `;
     }
     detailsDiv.innerHTML = `
-        <div style="font-size:18px;font-weight:600;color:#0369a1;">
+        <div style="font-size:18px;font-weight:600;color:var(--accent);">
             ${qtyDisplay}${pendingItem.query}
         </div>
-        <div style="font-size:13px;color:#64748b;margin-top:4px;">Suche passende Produkte...</div>
+        <div style="font-size:13px;color:var(--text-muted);margin-top:4px;">Suche passende Produkte...</div>
     `;
 
     await matchSingleItem(pendingItem);
@@ -700,12 +717,12 @@ function renderPendingSuggestions() {
     const detailsDiv = document.getElementById('pending-item-details');
 
     if (!pendingItem.suggestions || pendingItem.suggestions.length === 0) {
-        suggestionsDiv.innerHTML = '<div style="padding:20px;text-align:center;color:#ef4444;">❌ Keine passenden Produkte gefunden</div>';
+        suggestionsDiv.innerHTML = '<div style="padding:20px;text-align:center;color:var(--danger);">❌ Keine passenden Produkte gefunden</div>';
         detailsDiv.innerHTML = `
-            <div style="font-size:18px;font-weight:600;color:#ef4444;">
+            <div style="font-size:18px;font-weight:600;color:var(--danger);">
                 ${pendingItem.query}
             </div>
-            <div style="font-size:13px;color:#ef4444;margin-top:4px;">Keine Produkte gefunden</div>
+            <div style="font-size:13px;color:var(--danger);margin-top:4px;">Keine Produkte gefunden</div>
         `;
         return;
     }
@@ -718,14 +735,14 @@ function renderPendingSuggestions() {
     }
 
     detailsDiv.innerHTML = `
-        <div style="font-size:16px;font-weight:600;color:#0369a1;">
+        <div style="font-size:16px;font-weight:600;color:var(--accent);">
             ${qtyDisplay ? qtyDisplay + ' ' : ''}${pendingItem.query}
         </div>
-        <div style="font-size:13px;color:#22c55e;margin-top:4px;">✓ ${pendingItem.suggestions.length} Produkt(e) gefunden</div>
+        <div style="font-size:13px;color:var(--success);margin-top:4px;">✓ ${pendingItem.suggestions.length} Produkt(e) gefunden</div>
     `;
 
-    suggestionsDiv.innerHTML = `
-        <div style="font-size:14px;color:#64748b;margin-bottom:8px;">
+        suggestionsDiv.innerHTML = `
+        <div style="font-size:14px;color:var(--text-muted);margin-bottom:8px;">
             Wähle ein Produkt aus (beste Treffer zuerst):
         </div>
         ${pendingItem.suggestions.map((sug, idx) => renderPendingSuggestionRow(sug, idx)).join('')}
@@ -758,19 +775,19 @@ function renderPendingSuggestionRow(sug, idx) {
     const source = sug.source === 'local' ? 'Lokal' : 'OFF';
     const eco = (p.ecoscore || p.ecoscore_grade || '').toString().toUpperCase();
     const nutri = (p.nutriscore || p.nutriscore_grade || '').toString().toUpperCase();
-    const ecoBadge = eco ? `<span style="background:#ecfeff;color:#0891b2;padding:2px 6px;border-radius:4px;font-size:11px;">Eco ${eco}</span>` : '';
-    const nutriBadge = nutri ? `<span style="background:#f0fdf4;color:#16a34a;padding:2px 6px;border-radius:4px;font-size:11px;">Nutri ${nutri}</span>` : '';
+    const ecoBadge = eco ? `<span style="background:rgba(14,165,164,0.06);color:var(--accent);padding:2px 6px;border-radius:4px;font-size:11px;">Eco ${eco}</span>` : '';
+    const nutriBadge = nutri ? `<span style="background:rgba(16,185,129,0.06);color:var(--success);padding:2px 6px;border-radius:4px;font-size:11px;">Nutri ${nutri}</span>` : '';
 
     let ethicsBadge = '';
     if (p.ethics_score != null) {
         const ethicsScore = p.ethics_score;
         let ethicsColor, ethicsLabel, ethicsTitle;
         if (ethicsScore >= 0.75) {
-            ethicsColor = '#22c55e'; ethicsLabel = 'Fair ✓'; ethicsTitle = 'Gute ethische Bewertung';
+            ethicsColor = 'var(--success)'; ethicsLabel = 'Fair ✓'; ethicsTitle = 'Gute ethische Bewertung';
         } else if (ethicsScore >= 0.5) {
-            ethicsColor = '#f59e0b'; ethicsLabel = 'OK'; ethicsTitle = 'Neutrale ethische Bewertung';
+            ethicsColor = 'var(--muted)'; ethicsLabel = 'OK'; ethicsTitle = 'Neutrale ethische Bewertung';
         } else {
-            ethicsColor = '#ef4444'; ethicsLabel = 'Kritisch'; ethicsTitle = 'Ethische Bedenken';
+            ethicsColor = 'var(--danger)'; ethicsLabel = 'Kritisch'; ethicsTitle = 'Ethische Bedenken';
         }
         if (p.ethics_issues && p.ethics_issues.length > 0) {
             ethicsTitle += ':\\n' + p.ethics_issues.join('\\n');
@@ -783,7 +800,7 @@ function renderPendingSuggestionRow(sug, idx) {
     if (p._ratingStats && p._ratingStats.total_ratings > 0) {
         const avg = p._ratingStats.average_rating;
         const stars = '★'.repeat(Math.round(avg)) + '☆'.repeat(5 - Math.round(avg));
-        ratingBadge = `<span style="background:#fef3c7;color:#f59e0b;padding:2px 6px;border-radius:4px;font-size:11px;cursor:help;" title="${avg.toFixed(1)}/5 aus ${p._ratingStats.total_ratings} Bewertungen">${stars} (${p._ratingStats.total_ratings})</span>`;
+        ratingBadge = `<span style="background:rgba(245,158,11,0.08);color:var(--muted);padding:2px 6px;border-radius:4px;font-size:11px;cursor:help;" title="${avg.toFixed(1)}/5 aus ${p._ratingStats.total_ratings} Bewertungen">${stars} (${p._ratingStats.total_ratings})</span>`;
     }
 
     const matchQuality = sug.score >= 0.9 ? '🟢' : sug.score >= 0.75 ? '🟡' : '🟠';
@@ -801,36 +818,34 @@ function renderPendingSuggestionRow(sug, idx) {
 
     const unitPrice = calculateUnitPrice(p);
     if (unitPrice && priceDisplay) {
-        priceDisplay += ` <span style="color:#94a3b8;font-size:10px;">(${unitPrice.display})</span>`;
+        priceDisplay += ` <span style="color:var(--text-muted);font-size:10px;">(${unitPrice.display})</span>`;
     }
 
     const qty = p.size_amount && p.size_unit ? ` • ${p.size_amount} ${p.size_unit}` : '';
 
     let imageHtml = '';
     if (p.image_url) {
-        imageHtml = `<img src="${p.image_url}" style="width:64px;height:64px;min-width:64px;border-radius:8px;object-fit:cover;border:2px solid #e5e7eb;pointer-events:none;" onerror="this.style.display='none'" loading="lazy" alt="${p.product_name || 'Produktbild'}">`;
+        imageHtml = `<img src="${p.image_url}" style="width:64px;height:64px;min-width:64px;border-radius:8px;object-fit:cover;border:2px solid var(--border);pointer-events:none;" onerror="this.style.display='none'" loading="lazy" alt="${p.product_name || 'Produktbild'}">`;
     } else {
-        imageHtml = `<div style="width:64px;height:64px;min-width:64px;border-radius:8px;background:#f3f4f6;display:flex;align-items:center;justify-content:center;font-size:28px;pointer-events:none;">📦</div>`;
+        imageHtml = `<div style="width:64px;height:64px;min-width:64px;border-radius:8px;background:var(--input-bg);display:flex;align-items:center;justify-content:center;font-size:28px;pointer-events:none;">📦</div>`;
     }
 
-    const borderColor = isSelected ? '#22c55e' : '#e5e7eb';
-    const bgColor = isSelected ? '#f0fdf4' : '#fff';
+    const borderColor = isSelected ? 'var(--success)' : 'var(--border)';
+    const bgColor = isSelected ? 'rgba(16,185,129,0.06)' : 'var(--input-bg)';
     const selectedClass = isSelected ? 'selected' : '';
 
     return `
         <div class="pending-product-card ${selectedClass}" data-index="${idx}" data-is-selected="${isSelected}"
              onclick="window.selectPendingProduct(${idx})"
-             style="display:flex;align-items:center;gap:12px;padding:12px;border:2px solid ${borderColor};border-radius:8px;margin-top:8px;background:${bgColor};cursor:pointer;transition:all 0.2s;"
-             onmouseover="this.style.borderColor='#0ea5e9'; this.style.background='#f0f9ff';"
-             onmouseout="var selected = this.getAttribute('data-is-selected') === 'true'; this.style.borderColor = selected ? '#22c55e' : '#e5e7eb'; this.style.background = selected ? '#f0fdf4' : '#fff';">
+             style="display:flex;align-items:center;gap:12px;padding:12px;border:2px solid ${borderColor};border-radius:8px;margin-top:8px;background:${bgColor};cursor:pointer;transition:all 0.2s;">
             ${imageHtml}
             <div style="flex:1;min-width:0;pointer-events:none;">
-                <div style="font-weight:600;color:#0f172a;word-break:break-word;display:flex;align-items:center;gap:6px;">
+                <div style="font-weight:600;color:var(--text);word-break:break-word;display:flex;align-items:center;gap:6px;">
                     <span title="Match-Qualität">${matchQuality}</span>
                     ${p.product_identifier || p.product_name || ''}
-                    ${isSelected ? '<span style="background:#22c55e;color:white;padding:2px 8px;border-radius:12px;font-size:11px;margin-left:8px;">✓ Ausgewählt</span>' : ''}
+                    ${isSelected ? '<span style="background:var(--success);color:white;padding:2px 8px;border-radius:12px;font-size:11px;margin-left:8px;">✓ Ausgewählt</span>' : ''}
                 </div>
-                <div style="font-size:12px;color:#64748b;margin-top:4px;">
+                <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">
                     ${source}${qty} ${priceDisplay ? `• ${priceDisplay}` : ''} ${ecoBadge} ${nutriBadge} ${ethicsBadge} ${ratingBadge}
                 </div>
             </div>
@@ -862,13 +877,13 @@ window.selectPendingProduct = function (idx) {
         if (i === idx) {
             // Selected card
             card.setAttribute('data-is-selected', 'true');
-            card.style.borderColor = '#22c55e';
-            card.style.background = '#f0fdf4';
+            card.style.borderColor = 'var(--success)';
+            card.style.background = 'rgba(16,185,129,0.06)';
         } else {
             // Unselected cards
             card.setAttribute('data-is-selected', 'false');
-            card.style.borderColor = '#e5e7eb';
-            card.style.background = '#fff';
+            card.style.borderColor = 'var(--border)';
+            card.style.background = 'var(--input-bg)';
         }
     });
 
@@ -889,7 +904,7 @@ window.selectPendingProduct = function (idx) {
         // Add badge to selected card
         if (i === idx) {
             const badge = document.createElement('span');
-            badge.style.cssText = 'background:#22c55e;color:white;padding:2px 8px;border-radius:12px;font-size:11px;margin-left:8px;';
+            badge.style.cssText = 'background:var(--success);color:white;padding:2px 8px;border-radius:12px;font-size:11px;margin-left:8px;';
             badge.textContent = '✓ Ausgewählt';
             titleDiv.appendChild(badge);
         }
@@ -1088,18 +1103,18 @@ async function renderList() {
 
         // Rating stars (1-5)
         const rating = item.rating || 0;
-        const stars = [1, 2, 3, 4, 5].map(n => `<span style="cursor:pointer;color:${n <= rating ? '#f59e0b' : '#cbd5e1'};font-size:18px;" onclick="window.setItemRating(${i}, ${n}); renderList();">★</span>`).join('');
+    const stars = [1, 2, 3, 4, 5].map(n => `<span style="cursor:pointer;color:${n <= rating ? 'var(--muted)' : 'var(--border)'};font-size:18px;" onclick="window.setItemRating(${i}, ${n}); renderList();">★</span>`).join('');
 
         // Notes editor
         const notes = item.notes || '';
-        const notesHtml = `<textarea placeholder=\"Notizen...\" oninput=\"window.setItemNotes(${i}, this.value)\" style=\"width:100%;min-height:48px;margin-top:6px;border:1px solid #e5e7eb;border-radius:6px;padding:6px;\">${notes}</textarea>`;
+        const notesHtml = `<textarea placeholder\\"Notizen...\\" oninput=\\"window.setItemNotes(${i}, this.value)\\" style=\\"width:100%;min-height:48px;margin-top:6px;border:1px solid var(--border);border-radius:6px;padding:6px;\\">${notes}</textarea>`;
 
         // Price input (if no verified price yet)
         let priceInputHtml = '';
         if (matched && !matched.current_price) {
             priceInputHtml = `<div style="margin-top:6px;display:flex;gap:6px;align-items:center;">
-                <input type="number" placeholder="Preis €" step="0.01" min="0" id="price-input-${i}" style="width:80px;padding:6px;border:1px solid #e5e7eb;border-radius:6px;">
-                <button onclick="window.submitPrice(${i})" style="background:#10b981;color:white;border:none;padding:6px 10px;border-radius:6px;cursor:pointer;font-size:12px;">Preis melden</button>
+                <input type="number" placeholder="Preis €" step="0.01" min="0" id="price-input-${i}" style="width:80px;padding:6px;border:1px solid var(--border);border-radius:6px;">
+                <button onclick="window.submitPrice(${i})" style="background:var(--success);color:white;border:none;padding:6px 10px;border-radius:6px;cursor:pointer;font-size:12px;">Preis melden</button>
             </div>`;
         }
 
@@ -1111,11 +1126,11 @@ async function renderList() {
                     ${matchedDisplay}
                     ${locationDisplay}
                     <div style="margin-top:6px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-                        <button onclick="window.editShoppingItem(${i})" style="background:#0ea5e9;color:white;border:none;padding:6px 10px;border-radius:6px;cursor:pointer;">Produkt ändern</button>
+                        <button onclick="window.editShoppingItem(${i})" style="background:var(--accent);color:white;border:none;padding:6px 10px;border-radius:6px;cursor:pointer;">Produkt ändern</button>
                         <div style="display:flex;align-items:center;gap:6px;">
-                            <button onclick="window.changeItemCount(${i}, -1)" style="width:28px;height:28px;border-radius:6px;border:1px solid #e5e7eb;">-</button>
+                            <button onclick="window.changeItemCount(${i}, -1)" style="width:28px;height:28px;border-radius:6px;border:1px solid var(--border);">-</button>
                             <span style="min-width:24px;text-align:center;font-weight:600;">${(item.calculation?.count) || 1}</span>
-                            <button onclick="window.changeItemCount(${i}, 1)" style="width:28px;height:28px;border-radius:6px;border:1px solid #e5e7eb;">+</button>
+                            <button onclick="window.changeItemCount(${i}, 1)" style="width:28px;height:28px;border-radius:6px;border:1px solid var(--border);">+</button>
                         </div>
                         <div title="Bewertung" style="margin-left:8px;">${stars}</div>
                     </div>
@@ -1229,7 +1244,7 @@ function exportList() {
         // Fallback: show in modal
         const modal = document.createElement('div');
         modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:9999;';
-        modal.innerHTML = `<div style="background:white;padding:24px;border-radius:12px;max-width:600px;max-height:80vh;overflow:auto;"><h3>Einkaufsliste teilen</h3><textarea readonly style="width:100%;min-height:300px;margin:16px 0;padding:12px;border:1px solid #e5e7eb;border-radius:6px;">${text}</textarea><button onclick="this.closest('div[style*=fixed]').remove()" style="background:#0ea5e9;color:white;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;">Schließen</button></div>`;
+    modal.innerHTML = `<div style="background:var(--card);padding:24px;border-radius:12px;max-width:600px;max-height:80vh;overflow:auto;"><h3>Einkaufsliste teilen</h3><textarea readonly style="width:100%;min-height:300px;margin:16px 0;padding:12px;border:1px solid var(--border);border-radius:6px;">${text}</textarea><button onclick="this.closest('div[style*=fixed]').remove()" style="background:var(--accent);color:white;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;">Schließen</button></div>`;
         document.body.appendChild(modal);
     });
 }

@@ -34,7 +34,7 @@ export function setupAddFlow({ getShoppingList, setShoppingList, getSelectedStor
                 if (!el) {
                     el = document.createElement('div');
                     el.className = 'wkf-loading-line';
-                    el.style.cssText = 'padding:8px 12px;background:#eef2ff;color:#0ea5e9;border-radius:6px;margin-bottom:8px;font-weight:600;';
+                    el.style.cssText = 'padding:8px 12px;background:rgba(14,165,233,0.06);color:var(--accent);border-radius:6px;margin-bottom:8px;font-weight:600;';
                     el.textContent = 'Suche Vorschl\u00e4ge...';
                     suggestionsDiv.prepend(el);
                 }
@@ -53,7 +53,9 @@ export function setupAddFlow({ getShoppingList, setShoppingList, getSelectedStor
             const text = (itemInput.value || '').trim();
             const qty = (qtyInput && qtyInput.value) ? qtyInput.value.trim() : '';
             if (!text) return alert('Bitte gib ein Produkt ein.');
-            if (!getSelectedStore()) return alert('Bitte wähle zuerst einen Laden aus.');
+            if (!getSelectedStore()) {
+                console.warn('Kein Laden ausgewählt — Artikel wird unter Allgemein gespeichert');
+            }
 
             const pending = window._pendingOffProduct || null;
             if (pending) {
@@ -144,14 +146,14 @@ export function setupAddFlow({ getShoppingList, setShoppingList, getSelectedStor
         const nutri = product.nutriscore_grade || product.nutriscore || '-';
         const eco = product.ecoscore_grade || product.ecoscore || '-';
         const title = product.product_identifier || product.product_name || product.generic_name || product.display_name || (product.brands && product.brands.split(',')[0]) || product.code || window._pendingQuery || 'Produkt';
-        const qtyText = product.quantity ? `<span style="color:#475569;font-size:13px;margin-left:8px;">${product.quantity}</span>` : '';
+        const qtyText = product.quantity ? `<span style="color:var(--text-muted);font-size:13px;margin-left:8px;">${product.quantity}</span>` : '';
         details.innerHTML = `
             <div style="display:flex;gap:12px;align-items:center;">
-                <div>${product.image_small_url ? `<img src='${product.image_small_url}' style='width:72px;height:72px;object-fit:cover;border-radius:6px;'>` : '<div style="width:72px;height:72px;border-radius:6px;background:#e5e7eb;display:flex;align-items:center;justify-content:center;">📦</div>'}</div>
+                <div>${product.image_small_url ? `<img src='${product.image_small_url}' style='width:72px;height:72px;object-fit:cover;border-radius:6px;'>` : '<div style="width:72px;height:72px;border-radius:6px;background:var(--input-bg);display:flex;align-items:center;justify-content:center;border:1px solid var(--border);">📦</div>'}</div>
                 <div>
                     <strong>${title}</strong>${qtyText}
-                    <div style="color:#64748b;margin-top:6px;">NutriScore: ${nutri} • EcoScore: ${eco}</div>
-                    <div style="margin-top:8px;">${labels.slice(0, 6).map(l => `<span style="background:#eef2ff;padding:4px 8px;border-radius:6px;margin-right:6px;font-size:12px;">${l}</span>`).join('')}</div>
+                    <div style="color:var(--text-muted);margin-top:6px;">NutriScore: ${nutri} • EcoScore: ${eco}</div>
+                    <div style="margin-top:8px;">${labels.slice(0, 6).map(l => `<span style="background:rgba(14,165,233,0.06);padding:4px 8px;border-radius:6px;margin-right:6px;font-size:12px;">${l}</span>`).join('')}</div>
                 </div>
             </div>
         `;
@@ -171,14 +173,21 @@ export function setupAddFlow({ getShoppingList, setShoppingList, getSelectedStor
         const existingControls = document.getElementById('pending-controls');
         if (existingControls) existingControls.remove();
         const controlsHtml = `
-            <div id="pending-controls" style="display:flex;align-items:center;justify-content:space-between;margin:12px 0;gap:8px;">
-                <div><label style="font-size:13px;color:#334155;"><input type="checkbox" id="pending-sort-fair" style="margin-right:8px;">Nach Fairness sortieren</label></div>
-                <div><button id="pending-score-legend" title="Wie der Score berechnet wird (Eco,Nutri,Ethik)" style="background:#eef2ff;border:none;padding:6px 8px;border-radius:6px;cursor:pointer;">ℹ️ Score</button></div>
+                <div id="pending-controls" style="display:flex;align-items:center;justify-content:space-between;margin:12px 0;gap:8px;">
+                <div><label style="font-size:13px;color:var(--text);"><input type="checkbox" id="pending-sort-fair" style="margin-right:8px;">Nach Fairness sortieren</label></div>
+                <div><button id="pending-score-legend" title="Wie der Score berechnet wird (Eco,Nutri,Ethik)" style="background:rgba(14,165,233,0.06);border:none;padding:6px 8px;border-radius:6px;cursor:pointer;">ℹ️ Score</button></div>
             </div>
         `;
 
         // decide order based on toggle
-        const items = (window._pendingSortByFair) ? (suggestions.slice().sort((a, b) => (b.__fairScore || scoring.computeFairScore(b, 'off')) - (a.__fairScore || scoring.computeFairScore(a, 'off')))) : suggestions.slice();
+    // Use the original suggestions array (kept on window) if available. We'll only show top 8 and allow loading more.
+    const allItems = (window._pendingSortByFair) ? (suggestions.slice().sort((a, b) => (b.__fairScore || scoring.computeFairScore(b, 'off')) - (a.__fairScore || scoring.computeFairScore(a, 'off')))) : suggestions.slice();
+    const PAGE_SIZE = 8;
+    // current offset stored on window for pagination in the pending UI
+    if (typeof window._pendingOffset === 'undefined') window._pendingOffset = 0;
+    const start = window._pendingOffset || 0;
+    const end = start + PAGE_SIZE;
+    const items = allItems.slice(start, end);
 
         // ensure suggestions container is visible, scrollable and styled clearly
         suggestionsDiv.style.display = 'block';
@@ -187,41 +196,48 @@ export function setupAddFlow({ getShoppingList, setShoppingList, getSelectedStor
         suggestionsDiv.style.overflowY = 'auto';
         suggestionsDiv.style.marginTop = suggestionsDiv.style.marginTop || '8px';
         suggestionsDiv.style.padding = suggestionsDiv.style.padding || '8px';
-        suggestionsDiv.style.background = suggestionsDiv.style.background || '#f8fafc';
-        suggestionsDiv.style.borderTop = suggestionsDiv.style.borderTop || '1px solid #e6edf3';
+    suggestionsDiv.style.background = suggestionsDiv.style.background || 'var(--card)';
+    suggestionsDiv.style.borderTop = suggestionsDiv.style.borderTop || '1px solid var(--border)';
         suggestionsDiv.style.position = 'relative';
         suggestionsDiv.style.zIndex = suggestionsDiv.style.zIndex || '1';
 
         const html = items.map((p, idx) => {
             const titleBase = p.product_identifier || p.product_name || p.generic_name || p.display_name || (p.brands && p.brands.split(',')[0]) || p.code || '';
-            const qtyDisplay = p.quantity ? ` <span style="color:#475569;font-size:12px;margin-left:6px;">(${p.quantity})</span>` : '';
+            const qtyDisplay = p.quantity ? ` <span style="color:var(--text-muted);font-size:12px;margin-left:6px;">(${p.quantity})</span>` : '';
             const title = titleBase + qtyDisplay;
-            const img = p.image_small_url ? `<img src='${p.image_small_url}' style='width:52px;height:52px;object-fit:cover;border-radius:6px;'>` : '<div style="width:52px;height:52px;border-radius:6px;background:#e5e7eb;display:flex;align-items:center;justify-content:center;">📦</div>';
+            const img = p.image_small_url ? `<img src='${p.image_small_url}' style='width:52px;height:52px;object-fit:cover;border-radius:6px;'>` : '<div style="width:52px;height:52px;border-radius:6px;background:var(--input-bg);display:flex;align-items:center;justify-content:center;border:1px solid var(--border);">📦</div>';
             const nutri = p.nutriscore_grade || p.nutriscore || '-';
             const eco = p.ecoscore_grade || p.ecoscore || '-';
-            const labels = normalizeLabels(p.labels || p.labels_tags).slice(0, 3).map(l => `<span style="background:#eef2ff;padding:4px 8px;border-radius:6px;margin-right:6px;font-size:12px;">${l}</span>`).join('');
+            const labels = normalizeLabels(p.labels || p.labels_tags).slice(0, 3).map(l => `<span style="background:rgba(14,165,233,0.06);padding:4px 8px;border-radius:6px;margin-right:6px;font-size:12px;">${l}</span>`).join('');
             const comps = scoring.computeFairComponents(p, 'off');
             const fairScore = comps.total || 0;
             // color: green >=0.75, yellow >=0.5, red otherwise
-            let bg = '#fff7ed';
-            let color = '#92400e';
-            if (fairScore >= 0.75) { bg = '#ecfdf5'; color = '#065f46'; }
-            else if (fairScore >= 0.5) { bg = '#fffbeb'; color = '#854d0e'; }
+            let bg = 'rgba(239,68,68,0.06)';
+            let color = 'var(--danger)';
+            if (fairScore >= 0.75) { bg = 'rgba(22,163,74,0.12)'; color = 'var(--success)'; }
+            else if (fairScore >= 0.5) { bg = 'rgba(245,158,11,0.08)'; color = 'var(--muted)'; }
             const tooltip = `Eco: ${comps.ecoScore.toFixed(2)} | Nutri: ${comps.nutriScore.toFixed(2)} | Ethics: ${comps.ethicsScore.toFixed(2)} | verified:+${comps.verifiedBoost.toFixed(2)} | local:+${comps.localBoost.toFixed(2)}`;
             // store score for reuse
             p.__fairScore = fairScore;
-            return `<div class="pending-suggestion" data-idx="${idx}" style="display:flex;gap:12px;padding:8px;border-bottom:1px solid #e6edf3;cursor:pointer;align-items:center;width:100%;box-sizing:border-box;">
+            return `<div class="pending-suggestion" data-idx="${idx}" style="display:flex;gap:12px;padding:8px;border-bottom:1px solid var(--border);cursor:pointer;align-items:center;width:100%;box-sizing:border-box;">
                 <div>${img}</div>
                 <div style="flex:1;">
                     <div style="display:flex;align-items:center;justify-content:space-between;"><div style="font-weight:600">${title}</div><div title="${tooltip}" style="font-size:13px;color:${color};font-weight:700;background:${bg};padding:6px 8px;border-radius:6px;">${fairScore.toFixed(2)}</div></div>
-                    <div style="color:#64748b;font-size:13px;margin-top:6px;">Nutri: ${nutri} • Eco: ${eco}</div>
+                    <div style="color:var(--text-muted);font-size:13px;margin-top:6px;">Nutri: ${nutri} • Eco: ${eco}</div>
                     <div style="margin-top:6px;">${labels}</div>
                 </div>
             </div>`;
         }).join('');
         // html length computed; rendering below
         // Put controls + suggestions into the suggestionsDiv to ensure correct ordering
-        suggestionsDiv.innerHTML = controlsHtml + html;
+        // Add a load-more control area at the end
+        let loadMoreHtml = '';
+        if (allItems.length > end) {
+            loadMoreHtml = `<div id="pending-load-more" style="padding:12px;text-align:center;"> <button id="pending-load-more-btn" style="padding:8px 12px;border-radius:6px;border:none;background:var(--accent);color:white;cursor:pointer;">Mehr anzeigen (${allItems.length - end} weitere)</button></div>`;
+        } else if (allItems.length === 0) {
+            loadMoreHtml = `<div style="padding:8px;color:var(--text-muted);">Keine Vorschläge gefunden.</div>`;
+        }
+        suggestionsDiv.innerHTML = controlsHtml + html + loadMoreHtml;
         // wire controls
         const chk = suggestionsDiv.querySelector('#pending-sort-fair');
         if (chk) {
@@ -269,6 +285,38 @@ export function setupAddFlow({ getShoppingList, setShoppingList, getSelectedStor
                 window._pendingSuggestions = items.slice();
                 renderPendingSelection(prod);
             });
+                // wire load more button
+                const loadMoreBtn = suggestionsDiv.querySelector('#pending-load-more-btn');
+                if (loadMoreBtn) {
+                    loadMoreBtn.addEventListener('click', async () => {
+                        // show loading state on button
+                        loadMoreBtn.disabled = true;
+                        const origText = loadMoreBtn.textContent;
+                        loadMoreBtn.textContent = 'Lade mehr...';
+                        // increase offset and re-render using the full original set
+                        window._pendingOffset = (window._pendingOffset || 0) + PAGE_SIZE;
+                        // If we don't have enough items in the original array, try to fetch more from OFF
+                        const original = window._pendingSuggestionsOriginal || [];
+                        if ((original.length || 0) <= window._pendingOffset + PAGE_SIZE && off && typeof off.fetchOffProducts === 'function') {
+                            try {
+                                // attempt to fetch more candidates from OFF (ask for a larger max_results)
+                                const extra = await off.fetchOffProducts(window._pendingQuery || '', 60, 200);
+                                const existing = new Set((original || []).map(p => p.code));
+                                for (const p of extra) if (!existing.has(p.code)) original.push(p);
+                                window._pendingSuggestionsOriginal = original;
+                            } catch (e) {
+                                console.warn('Failed to fetch extra OFF results on Load more', e);
+                            } finally {
+                                // restore button state
+                                loadMoreBtn.disabled = false;
+                                loadMoreBtn.textContent = origText;
+                            }
+                        }
+                        // Re-render the suggestions using the updated original set
+                        const src = window._pendingSuggestionsOriginal && window._pendingSuggestionsOriginal.length ? window._pendingSuggestionsOriginal : suggestions;
+                        renderPendingSuggestions(src);
+                    });
+                }
         });
         // (debug instrumentation removed) 
         // pre-select first suggestion and expose it globally so confirm button works

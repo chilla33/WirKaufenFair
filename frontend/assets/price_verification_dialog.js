@@ -19,45 +19,45 @@ window.showPriceVerificationDialog = function (productName, currentPrice, report
     `;
 
     modal.innerHTML = `
-        <div style="background: white; padding: 32px; border-radius: 16px; max-width: 500px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.3);">
-            <h2 style="margin: 0 0 16px 0; color: #0f172a; font-size: 22px;">
+        <div style="background: var(--card); padding: 32px; border-radius: 16px; max-width: 500px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.3);">
+            <h2 style="margin: 0 0 16px 0; color: var(--text); font-size: 22px;">
                 ✓ Preis bestätigen
             </h2>
             
-            <div style="background: #f8fafc; padding: 16px; border-radius: 8px; margin-bottom: 24px;">
-                <div style="font-weight: 600; color: #475569; margin-bottom: 4px;">${productName}</div>
-                <div style="font-size: 12px; color: #94a3b8;">📍 ${storeName}</div>
-                <div style="font-size: 32px; font-weight: 700; color: #0ea5e9; margin-top: 12px;">
+            <div style="background: var(--bg); padding: 16px; border-radius: 8px; margin-bottom: 24px;">
+                <div style="font-weight: 600; color: var(--text-muted); margin-bottom: 4px;">${productName}</div>
+                <div style="font-size: 12px; color: var(--muted);">📍 ${storeName}</div>
+                <div style="font-size: 32px; font-weight: 700; color: var(--accent); margin-top: 12px;">
                     ${currentPrice.toFixed(2)} €
                 </div>
             </div>
 
-            <div style="background: #fef3c7; border: 1px solid #fbbf24; border-radius: 8px; padding: 16px; margin-bottom: 24px;">
-                <strong style="color: #92400e;">📋 Bitte prüfen:</strong>
-                <p style="color: #92400e; margin: 8px 0 0 0; font-size: 14px;">
+            <div style="background: rgba(255, 243, 199, 0.12); border: 1px solid rgba(251,191,36,0.12); border-radius: 8px; padding: 16px; margin-bottom: 24px;">
+                <strong style="color: var(--muted);">📋 Bitte prüfen:</strong>
+                <p style="color: var(--muted); margin: 8px 0 0 0; font-size: 14px;">
                     Stimmt dieser Preis mit dem aktuellen Preis im Geschäft überein?
                 </p>
             </div>
 
             <div id="correction-section" style="display: none; margin-bottom: 24px;">
-                <label style="display: block; font-weight: 600; color: #475569; margin-bottom: 8px;">
+                <label style="display: block; font-weight: 600; color: var(--text-muted); margin-bottom: 8px;">
                     Korrigierter Preis:
                 </label>
                 <input type="number" id="corrected-price" step="0.01" min="0" 
                        placeholder="z.B. 1.99"
-                       style="width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 16px;">
+                       style="width: 100%; padding: 12px; border: 2px solid var(--border); border-radius: 8px; font-size: 16px;">
             </div>
 
             <div style="display: flex; gap: 12px; flex-wrap: wrap;">
-                <button id="confirm-btn" style="flex: 1; padding: 14px; background: #22c55e; color: white; border: none; border-radius: 8px; font-weight: 600; font-size: 16px; cursor: pointer;">
+                <button id="confirm-btn" style="flex: 1; padding: 14px; background: var(--success); color: white; border: none; border-radius: 8px; font-weight: 600; font-size: 16px; cursor: pointer;">
                     ✓ Stimmt, bestätigen
                 </button>
-                <button id="correct-btn" style="flex: 1; padding: 14px; background: #f59e0b; color: white; border: none; border-radius: 8px; font-weight: 600; font-size: 16px; cursor: pointer;">
+                <button id="correct-btn" style="flex: 1; padding: 14px; background: var(--muted); color: white; border: none; border-radius: 8px; font-weight: 600; font-size: 16px; cursor: pointer;">
                     ✏️ Preis korrigieren
                 </button>
             </div>
             
-            <button id="cancel-btn" style="width: 100%; padding: 12px; background: #f1f5f9; color: #64748b; border: none; border-radius: 8px; font-weight: 600; margin-top: 12px; cursor: pointer;">
+            <button id="cancel-btn" style="width: 100%; padding: 12px; background: var(--card); color: var(--text-muted); border: none; border-radius: 8px; font-weight: 600; margin-top: 12px; cursor: pointer;">
                 Abbrechen
             </button>
         </div>
@@ -163,7 +163,7 @@ window.showPriceVerificationDialog = function (productName, currentPrice, report
 // Toast notification helper
 function showToast(message, type = 'info') {
     const toast = document.createElement('div');
-    const bgColor = type === 'success' ? '#22c55e' : type === 'error' ? '#ef4444' : '#0ea5e9';
+    const bgColor = type === 'success' ? 'var(--success)' : type === 'error' ? 'var(--danger)' : 'var(--accent)';
 
     toast.style.cssText = `
         position: fixed;

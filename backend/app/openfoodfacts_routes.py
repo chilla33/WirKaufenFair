@@ -16,6 +16,27 @@ from .ethics_db import get_ethics_score, extract_brand_from_product, get_ethics_
 
 router = APIRouter(prefix="/api/v1/openfoodfacts", tags=["OpenFoodFacts"])
 
+# Local HTTP helper & config (kept local to avoid circular imports)
+VERIFY_SSL = False
+REQUEST_TIMEOUT = 30.0
+
+async def http_get_with_retry(url, params=None, timeout=REQUEST_TIMEOUT, retries=3, verify=VERIFY_SSL):
+    delay = 0.5
+    last_exc = None
+    for attempt in range(1, retries + 1):
+        try:
+            async with httpx.AsyncClient(timeout=timeout, verify=verify) as client:
+                resp = await client.get(url, params=params)
+                return resp
+        except Exception as e:
+            last_exc = e
+            print(f'HTTP GET attempt {attempt} to {url} failed: {e}')
+            if attempt == retries:
+                break
+            await asyncio.sleep(delay)
+            delay *= 2
+    raise last_exc
+
 
 
 # Simple in-memory TTL cache
@@ -246,39 +267,85 @@ async def search_products(
     country: str = Query("de", description="Country code"),
     page: int = Query(1, description="Page number"),
     page_size: int = Query(20, description="Results per page"),
+    max_results: Optional[int] = Query(None, description="If set, fetch up to this many total results by paging (server-capped)."),
     sort_by: str = Query('fair', description="Sort by: 'fair'|'green'|'nutri'|'ethics'|'price' (default: fair)"),
 ) -> Dict[str, Any]:
     # include sort_by in cache key so different sorts are cached separately
-    cached = search_cache.get(query, country, page, page_size, sort_by)
+    cached = search_cache.get(query, country, page, page_size, sort_by, max_results)
     if cached is not None:
         return cached
+    # If max_results requested, we will page until we collect up to that many (server capped)
+    desired = None
+    if max_results is not None and isinstance(max_results, int) and max_results > 0:
+        desired = min(max_results, 500)  # hard cap to 500 results to avoid runaway requests
+
+    base_fields = "code,product_name,product_name_de,brands,quantity,image_url,image_front_url,image_front_small_url,image_small_url,stores,stores_tags,categories,categories_tags,nutriscore_grade,ecoscore_grade,ingredients_text,ingredients_text_de,allergens_tags,labels_tags,manufacturing_places,origins"
+
     params = {
         "search_terms": query,
         "countries_tags": country,
         "page": page,
         "page_size": page_size,
-        "fields": "code,product_name,product_name_de,brands,quantity,image_url,image_front_url,image_front_small_url,image_small_url,stores,stores_tags,categories,categories_tags,nutriscore_grade,ecoscore_grade,ingredients_text,ingredients_text_de,allergens_tags,labels_tags,manufacturing_places,origins"
+        "fields": base_fields
     }
     try:
-        try:
-            response = await http_get_with_retry(OFF_SEARCH, params=params, timeout=REQUEST_TIMEOUT, retries=2, verify=VERIFY_SSL)
-            data = response.json()
-        except Exception as e:
-            print(f"⚠️ OFF v2 API request failed, trying v0 fallback: {e}")
-            v0_params = {
-                "search_terms": query,
-                "tagtype_0": "countries",
-                "tag_contains_0": "contains",
-                "tag_0": country,
-                "page": page,
-                "page_size": page_size,
-                "json": 1,
-                "fields": "code,product_name,product_name_de,brands,quantity,image_url,image_front_url,stores,categories_tags,nutriscore_grade,ecoscore_grade"
-            }
-            response = await http_get_with_retry(OFF_SEARCH_V0, params=v0_params, timeout=REQUEST_TIMEOUT, retries=2, verify=VERIFY_SSL)
-            data = response.json()
-
-        products = data.get('products', [])
+        # If paging requested to collect many results, iterate pages
+        products = []
+        if desired:
+            # Cap per-page to 100 to be gentle on OFF
+            per_page = min(100, max(10, page_size))
+            page_idx = 1
+            while len(products) < desired and page_idx < 20:
+                try:
+                    p_params = {**params, 'page': page_idx, 'page_size': per_page}
+                    try:
+                        response = await http_get_with_retry(OFF_SEARCH, params=p_params, timeout=REQUEST_TIMEOUT, retries=2, verify=VERIFY_SSL)
+                        data = response.json()
+                    except Exception:
+                        # try v0 fallback
+                        v0_params = {
+                            "search_terms": query,
+                            "tagtype_0": "countries",
+                            "tag_contains_0": "contains",
+                            "tag_0": country,
+                            "page": page_idx,
+                            "page_size": per_page,
+                            "json": 1,
+                            "fields": base_fields
+                        }
+                        response = await http_get_with_retry(OFF_SEARCH_V0, params=v0_params, timeout=REQUEST_TIMEOUT, retries=2, verify=VERIFY_SSL)
+                        data = response.json()
+                    batch = data.get('products', []) or []
+                    if not batch:
+                        break
+                    products.extend(batch)
+                    if len(batch) < per_page:
+                        break
+                except Exception as e:
+                    print('OFF paging error:', e)
+                    break
+                page_idx += 1
+            # Trim to desired
+            products = products[:desired]
+        else:
+            try:
+                response = await http_get_with_retry(OFF_SEARCH, params=params, timeout=REQUEST_TIMEOUT, retries=2, verify=VERIFY_SSL)
+                data = response.json()
+            except Exception as e:
+                print(f"⚠️ OFF v2 API request failed, trying v0 fallback: {e}")
+                v0_params = {
+                    "search_terms": query,
+                    "tagtype_0": "countries",
+                    "tag_contains_0": "contains",
+                    "tag_0": country,
+                    "page": page,
+                    "page_size": page_size,
+                    "json": 1,
+                    "fields": base_fields
+                }
+                response = await http_get_with_retry(OFF_SEARCH_V0, params=v0_params, timeout=REQUEST_TIMEOUT, retries=2, verify=VERIFY_SSL)
+                data = response.json()
+            products = data.get('products', [])
         if not products:
             print(f"OFF search returned 0 products for query='{query}' country='{country}' page={page} page_size={page_size} status={getattr(response,'status_code',None)}")
             try:
