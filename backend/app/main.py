@@ -190,11 +190,17 @@ def suggest_product_location(payload: product_schemas.ProductLocationCreate = Bo
 @app.get('/api/v1/product_locations')
 @app.get('/api/v1/product_locations', response_model=list[product_schemas.ProductLocation])
 def list_product_locations(product_identifier: str | None = None, db: Session = Depends(get_db)):
-    q = db.query(product_models.ProductLocation)
-    if product_identifier:
-        q = q.filter(product_models.ProductLocation.product_identifier == product_identifier)
-    items = q.order_by(product_models.ProductLocation.created_at.desc()).limit(200).all()
-    return items
+    try:
+        q = db.query(product_models.ProductLocation)
+        if product_identifier:
+            q = q.filter(product_models.ProductLocation.product_identifier == product_identifier)
+        items = q.order_by(product_models.ProductLocation.created_at.desc()).limit(200).all()
+        return items
+    except Exception as e:
+        # Log error for debugging and return a controlled 500
+        print(f"Error in list_product_locations: {e}")
+        from fastapi import HTTPException
+        raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
 @app.get('/api/v1/products/lookup/{barcode}')

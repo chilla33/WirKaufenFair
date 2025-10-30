@@ -273,7 +273,7 @@ export function levenshteinDistance(a, b) {
 
 
 import * as scoring from './scoring.js';
-import * as off from './openfoodfacts.js';
+import * as off from './openfoodfacts_api.js';
 
 /**
  * Find suggestions by combining local products and OFF results.

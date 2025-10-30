@@ -233,3 +233,36 @@ export function formatUnit(amount, unit) {
     }
     return `${amount} ${unit}`;
 }
+
+// Return HTML fragment for pending suggestion details (used by shopping_list.js)
+export function getPendingDetailsHtml(p, idx) {
+    const aisle = p.aisle || '';
+    const shelf = p.shelf_label || '';
+    const currentPrice = p.current_price != null ? p.current_price : '';
+    const sizeAmount = p.size_amount != null ? p.size_amount : '';
+    const sizeUnit = p.size_unit || '';
+    const units = ['g','kg','ml','l','st','x','pack'];
+    const unitOptions = units.map(u => `<option value="${u}" ${sizeUnit===u ? 'selected' : ''}>${u}</option>`).join('');
+    const offLink = p.barcode ? `<a href="https://world.openfoodfacts.org/product/${p.barcode}" target="_blank" rel="noopener">OpenFoodFacts Seite</a>` : (p._url ? `<a href="${p._url}" target="_blank" rel="noopener">OpenFoodFacts Link</a>` : '');
+    return `
+        <div id="pending-details-${idx}" class="pending-details" style="display:none;margin-top:8px;padding:10px;border:1px dashed var(--border);border-radius:8px;background:var(--card);">
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                <label style="font-size:12px;color:var(--text-muted);min-width:60px;">Gang</label>
+                <input type="text" value="${String(aisle).replace(/"/g,'&quot;')}" onchange="window.updatePendingProductField(${idx}, 'aisle', this.value)" style="padding:6px;border:1px solid var(--border);border-radius:6px;min-width:140px;" />
+                <label style="font-size:12px;color:var(--text-muted);min-width:60px;">Regal</label>
+                <input type="text" value="${String(shelf).replace(/"/g,'&quot;')}" onchange="window.updatePendingProductField(${idx}, 'shelf_label', this.value)" style="padding:6px;border:1px solid var(--border);border-radius:6px;min-width:140px;" />
+                <label style="font-size:12px;color:var(--text-muted);min-width:60px;">Preis</label>
+                <input type="number" step="0.01" value="${currentPrice}" onchange="window.updatePendingProductField(${idx}, 'current_price', this.value)" style="padding:6px;border:1px solid var(--border);border-radius:6px;min-width:120px;" />
+                <label style="font-size:12px;color:var(--text-muted);min-width:60px;">Menge</label>
+                <input type="number" step="any" value="${sizeAmount}" onchange="window.updatePendingProductField(${idx}, 'size_amount', this.value)" style="padding:6px;border:1px solid var(--border);border-radius:6px;width:100px;" />
+                <select onchange="window.updatePendingProductField(${idx}, 'size_unit', this.value)" style="padding:6px;border:1px solid var(--border);border-radius:6px;">
+                    ${unitOptions}
+                </select>
+            </div>
+            <div style="margin-top:8px;font-size:13px;color:var(--text-muted);display:flex;gap:12px;align-items:center;">
+                ${offLink}
+                <button type="button" onclick="window.togglePendingDetails(${idx})" style="margin-left:auto;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:transparent;">Schließen</button>
+            </div>
+        </div>
+    `;
+}

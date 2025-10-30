@@ -246,22 +246,42 @@ def get_best_price(
         # Prüfe ob price_history existiert und Preis noch aktuell ist
         if hasattr(pl, 'price_history') and pl.price_history:
             history = pl.price_history
-            if isinstance(history, list) and len(history) > 0:
-                latest = max(history, key=lambda x: x.get('date', ''))
-                latest_date = datetime.datetime.fromisoformat(latest['date'])
-                if latest_date < thirty_days_ago:
-                    # Preis ist älter als 30 Tage → als veraltet markieren
-                    return {
-                        "source": "database",
-                        "price": pl.current_price,
-                        "currency": pl.price_currency or "EUR",
-                        "size_amount": pl.size_amount,
-                        "size_unit": pl.size_unit,
-                        "verified": True,
-                        "outdated": True,
-                        "age_days": (datetime.datetime.utcnow() - latest_date).days,
-                        "message": "Preis könnte veraltet sein (>30 Tage)"
-                    }
+            try:
+                # Ensure history is a list of dicts with ISO 'date' fields
+                if isinstance(history, list) and len(history) > 0:
+                    # Filter entries that have a valid ISO date
+                    valid_entries = []
+                    for entry in history:
+                        try:
+                            d = entry.get('date') if isinstance(entry, dict) else None
+                            if not d:
+                                continue
+                            # fromisoformat may raise; catch per-entry
+                            _ = datetime.datetime.fromisoformat(d)
+                            valid_entries.append(entry)
+                        except Exception:
+                            # skip malformed entry
+                            continue
+
+                    if valid_entries:
+                        latest = max(valid_entries, key=lambda x: x.get('date', ''))
+                        latest_date = datetime.datetime.fromisoformat(latest['date'])
+                        if latest_date < thirty_days_ago:
+                            # Preis ist älter als 30 Tage → als veraltet markieren
+                            return {
+                                "source": "database",
+                                "price": pl.current_price,
+                                "currency": pl.price_currency or "EUR",
+                                "size_amount": pl.size_amount,
+                                "size_unit": pl.size_unit,
+                                "verified": True,
+                                "outdated": True,
+                                "age_days": (datetime.datetime.utcnow() - latest_date).days,
+                                "message": "Preis könnte veraltet sein (>30 Tage)"
+                            }
+            except Exception as e:
+                # defensive: log and continue to return current price
+                print(f"Warning: malformed price_history for ProductLocation id={getattr(pl,'id',None)}: {e}")
         
         return {
             "source": "database",

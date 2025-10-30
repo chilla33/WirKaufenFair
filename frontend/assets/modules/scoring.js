@@ -1,6 +1,6 @@
 // scoring.js
 // Fairness & scoring helpers extracted from shopping_list_v2
-import * as off from './openfoodfacts.js';
+import * as off from './openfoodfacts_api.js';
 
 const GRADE_SCORE = { 'A': 1.0, 'B': 0.8, 'C': 0.6, 'D': 0.4, 'E': 0.2 };
 

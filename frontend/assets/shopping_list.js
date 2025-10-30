@@ -10,7 +10,21 @@ const useLiveOFF = true;
 
 // ===== INITIALIZATION =====
 document.addEventListener('DOMContentLoaded', async () => {
-    await loadStores();
+    // Prefer centralized store-api module when available
+    if (typeof window !== 'undefined' && window.storeApi && typeof window.storeApi.loadStores === 'function') {
+        try {
+            const stores = await window.storeApi.loadStores();
+            // store-api will populate a global list of products accessible via window.storeApi.getAllProducts
+            if (window.storeApi.getAllProducts) {
+                allProducts = window.storeApi.getAllProducts() || [];
+            }
+        } catch (e) {
+            console.warn('storeApi.loadStores failed, falling back to local loader', e);
+            await loadStores();
+        }
+    } else {
+        await loadStores();
+    }
     await loadAllProducts();
 
     const storeSelect = document.getElementById('store-select');
@@ -45,41 +59,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (clearBtn) {
         clearBtn.addEventListener('click', () => {
-        if (confirm('Einkaufsliste wirklich leeren?')) {
-            shoppingList = [];
-            renderList();
-        }
+            if (confirm('Einkaufsliste wirklich leeren?')) {
+                shoppingList = [];
+                renderList();
+            }
         });
     }
 
     setupItemAutocomplete(itemInput);
 });
 
-async function loadStores() {
-    try {
-        const res = await fetch('/api/v1/product_locations');
-        const data = await res.json();
-        allProducts = Array.isArray(data) ? data : [];
-
-        const staticStores = ['REWE', 'EDEKA', 'ALDI', 'LIDL', 'PENNY', 'NETTO', 'dm', 'ROSSMANN'];
-        const dbStores = [...new Set(allProducts.map(p => p.store_name))];
-        let stores = [...new Set([...staticStores, ...dbStores])].filter(Boolean).sort();
-
-        const select = document.getElementById('store-select');
-        if (select) {
-            stores.forEach(store => {
-                const opt = document.createElement('option');
-                opt.value = store;
-                opt.textContent = store;
-                select.appendChild(opt);
-            });
-        } else {
-            // no select present (single-input UI); nothing to append
-        }
-    } catch (err) {
-        console.error('Error loading stores:', err);
-    }
-}
 
 async function loadAllProducts() {
     // Already loaded in loadStores
@@ -759,7 +748,7 @@ function renderPendingSuggestions() {
         <div style="font-size:13px;color:var(--success);margin-top:4px;">✓ ${pendingItem.suggestions.length} Produkt(e) gefunden</div>
     `;
 
-        suggestionsDiv.innerHTML = `
+    suggestionsDiv.innerHTML = `
         <div style="font-size:14px;color:var(--text-muted);margin-bottom:8px;">
             Wähle ein Produkt aus (beste Treffer zuerst):
         </div>
@@ -868,6 +857,7 @@ function renderPendingSuggestionRow(sug, idx) {
                 </div>
             </div>
         </div>
+        ${window.renderer.getPendingDetailsHtml(p, idx)}
     `;
 }
 
@@ -948,6 +938,34 @@ window.selectPendingProduct = function (idx) {
     renderList();
 };
 
+// Toggle details panel for a pending suggestion row
+window.togglePendingDetails = function (idx) {
+    const panel = document.getElementById(`pending-details-${idx}`);
+    if (!panel) return;
+    panel.style.display = panel.style.display === 'none' ? '' : 'none';
+};
+
+// Update a field on the pending suggestion's product and refresh UI
+window.updatePendingProductField = function (idx, field, value) {
+    if (!pendingItem || !pendingItem.suggestions || !pendingItem.suggestions[idx]) return;
+    const prod = pendingItem.suggestions[idx].product;
+    if (!prod) return;
+    // coerce numeric fields
+    if (field === 'current_price' || field === 'size_amount') {
+        const num = parseFloat(value);
+        prod[field] = isNaN(num) ? null : num;
+    } else {
+        prod[field] = value;
+    }
+    // if editing the currently selected product, sync pendingItem.matched
+    const selectedIdx = pendingItem.suggestions.findIndex(s => s.product === pendingItem.matched);
+    if (selectedIdx === idx) {
+        pendingItem.matched = prod;
+    }
+    // re-render suggestions to show updated values
+    renderPendingSuggestions();
+};
+
 window.cancelPendingItem = function () {
     pendingItem = null;
     pendingEditIndex = null;
@@ -1004,47 +1022,6 @@ function setItemRating(index, rating) {
     const pid = (it.matched && (it.matched.barcode || it.matched.product_identifier || it.matched.product_name)) || it.query;
     ratings[pid] = rating;
     localStorage.setItem(key, JSON.stringify(ratings));
-}
-
-async function submitPrice(index) {
-    const it = shoppingList[index];
-    if (!it || !it.matched) return;
-    const inputEl = document.getElementById(`price-input-${index}`);
-    if (!inputEl) return;
-    const price = parseFloat(inputEl.value);
-    if (!price || price <= 0) {
-        alert('Bitte gib einen gültigen Preis ein!');
-        return;
-    }
-
-    const matched = it.matched;
-    const pid = matched.barcode || matched.product_identifier || matched.product_name;
-
-    try {
-        const res = await fetch('/api/v1/price_reports', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                product_identifier: pid,
-                store_name: selectedStore,
-                reported_price: price,
-                size_amount: matched.size_amount || null,
-                size_unit: matched.size_unit || null
-            })
-        });
-
-        if (res.ok) {
-            alert('✓ Preis gemeldet! Andere können ihn jetzt bestätigen.');
-            inputEl.value = '';
-            // Reload list to fetch updated price
-            renderList();
-        } else {
-            alert('Fehler beim Melden des Preises.');
-        }
-    } catch (e) {
-        console.error('Price submit error:', e);
-        alert('Fehler beim Melden des Preises.');
-    }
 }
 
 async function renderList() {
@@ -1121,7 +1098,7 @@ async function renderList() {
 
         // Rating stars (1-5)
         const rating = item.rating || 0;
-    const stars = [1, 2, 3, 4, 5].map(n => `<span style="cursor:pointer;color:${n <= rating ? 'var(--muted)' : 'var(--border)'};font-size:18px;" onclick="window.setItemRating(${i}, ${n}); renderList();">★</span>`).join('');
+        const stars = [1, 2, 3, 4, 5].map(n => `<span style="cursor:pointer;color:${n <= rating ? 'var(--muted)' : 'var(--border)'};font-size:18px;" onclick="window.setItemRating(${i}, ${n}); renderList();">★</span>`).join('');
 
         // Notes editor
         const notes = item.notes || '';
@@ -1262,7 +1239,7 @@ function exportList() {
         // Fallback: show in modal
         const modal = document.createElement('div');
         modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:9999;';
-    modal.innerHTML = `<div style="background:var(--card);padding:24px;border-radius:12px;max-width:600px;max-height:80vh;overflow:auto;"><h3>Einkaufsliste teilen</h3><textarea readonly style="width:100%;min-height:300px;margin:16px 0;padding:12px;border:1px solid var(--border);border-radius:6px;">${text}</textarea><button onclick="this.closest('div[style*=fixed]').remove()" style="background:var(--accent);color:white;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;">Schließen</button></div>`;
+        modal.innerHTML = `<div style="background:var(--card);padding:24px;border-radius:12px;max-width:600px;max-height:80vh;overflow:auto;"><h3>Einkaufsliste teilen</h3><textarea readonly style="width:100%;min-height:300px;margin:16px 0;padding:12px;border:1px solid var(--border);border-radius:6px;">${text}</textarea><button onclick="this.closest('div[style*=fixed]').remove()" style="background:var(--accent);color:white;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;">Schließen</button></div>`;
         document.body.appendChild(modal);
     });
 }
@@ -1273,5 +1250,4 @@ window.editShoppingItem = window.editShoppingItem;
 window.changeItemCount = changeItemCount;
 window.setItemNotes = setItemNotes;
 window.setItemRating = setItemRating;
-window.submitPrice = submitPrice;
 window.exportList = exportList;

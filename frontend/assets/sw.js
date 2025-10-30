@@ -7,6 +7,8 @@ const CORE_ASSETS = [
   '/assets/admin_product_locations.js',
   '/assets/logo.png'
 ];
+// Ensure important ES modules are cached too (renderer, openfoodfacts wrapper, store-api)
+CORE_ASSETS.push('/assets/modules/renderer.js', '/assets/modules/openfoodfacts_api.js', '/assets/modules/store-api.js');
 
 self.addEventListener('install', (event) => {
   event.waitUntil(

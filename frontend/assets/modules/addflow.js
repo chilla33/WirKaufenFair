@@ -1,8 +1,6 @@
 // addflow.js
 // Handles add-item flow: fetching OFF suggestions, rendering pending-selection, confirming/cancelling
-import * as off from './openfoodfacts.js';
-import * as persistence from './persistence.js';
-import * as renderer from './renderer.js';
+import * as off from './openfoodfacts_api.js';
 import * as scoring from './scoring.js';
 import * as matcher from './matcher.js';
 
@@ -184,14 +182,14 @@ export function setupAddFlow({ getShoppingList, setShoppingList, getSelectedStor
         `;
 
         // decide order based on toggle
-    // Use the original suggestions array (kept on window) if available. We'll only show top 8 and allow loading more.
-    const allItems = (window._pendingSortByFair) ? (suggestions.slice().sort((a, b) => (b.__fairScore || scoring.computeFairScore(b, 'off')) - (a.__fairScore || scoring.computeFairScore(a, 'off')))) : suggestions.slice();
-    const PAGE_SIZE = 8;
-    // current offset stored on window for pagination in the pending UI
-    if (typeof window._pendingOffset === 'undefined') window._pendingOffset = 0;
-    const start = window._pendingOffset || 0;
-    const end = start + PAGE_SIZE;
-    const items = allItems.slice(start, end);
+        // Use the original suggestions array (kept on window) if available. We'll only show top 8 and allow loading more.
+        const allItems = (window._pendingSortByFair) ? (suggestions.slice().sort((a, b) => (b.__fairScore || scoring.computeFairScore(b, 'off')) - (a.__fairScore || scoring.computeFairScore(a, 'off')))) : suggestions.slice();
+        const PAGE_SIZE = 8;
+        // current offset stored on window for pagination in the pending UI
+        if (typeof window._pendingOffset === 'undefined') window._pendingOffset = 0;
+        const start = window._pendingOffset || 0;
+        const end = start + PAGE_SIZE;
+        const items = allItems.slice(start, end);
 
         // ensure suggestions container is visible, scrollable and styled clearly
         suggestionsDiv.style.display = 'block';
@@ -200,8 +198,8 @@ export function setupAddFlow({ getShoppingList, setShoppingList, getSelectedStor
         suggestionsDiv.style.overflowY = 'auto';
         suggestionsDiv.style.marginTop = suggestionsDiv.style.marginTop || '8px';
         suggestionsDiv.style.padding = suggestionsDiv.style.padding || '8px';
-    suggestionsDiv.style.background = suggestionsDiv.style.background || 'var(--card)';
-    suggestionsDiv.style.borderTop = suggestionsDiv.style.borderTop || '1px solid var(--border)';
+        suggestionsDiv.style.background = suggestionsDiv.style.background || 'var(--card)';
+        suggestionsDiv.style.borderTop = suggestionsDiv.style.borderTop || '1px solid var(--border)';
         suggestionsDiv.style.position = 'relative';
         suggestionsDiv.style.zIndex = suggestionsDiv.style.zIndex || '1';
 
@@ -289,38 +287,38 @@ export function setupAddFlow({ getShoppingList, setShoppingList, getSelectedStor
                 window._pendingSuggestions = items.slice();
                 renderPendingSelection(prod);
             });
-                // wire load more button
-                const loadMoreBtn = suggestionsDiv.querySelector('#pending-load-more-btn');
-                if (loadMoreBtn) {
-                    loadMoreBtn.addEventListener('click', async () => {
-                        // show loading state on button
-                        loadMoreBtn.disabled = true;
-                        const origText = loadMoreBtn.textContent;
-                        loadMoreBtn.textContent = 'Lade mehr...';
-                        // increase offset and re-render using the full original set
-                        window._pendingOffset = (window._pendingOffset || 0) + PAGE_SIZE;
-                        // If we don't have enough items in the original array, try to fetch more from OFF
-                        const original = window._pendingSuggestionsOriginal || [];
-                        if ((original.length || 0) <= window._pendingOffset + PAGE_SIZE && off && typeof off.fetchOffProducts === 'function') {
-                            try {
-                                // attempt to fetch more candidates from OFF (ask for a larger max_results)
-                                const extra = await off.fetchOffProducts(window._pendingQuery || '', 60, 400);
-                                const existing = new Set((original || []).map(p => p.code));
-                                for (const p of extra) if (!existing.has(p.code)) original.push(p);
-                                window._pendingSuggestionsOriginal = original;
-                            } catch (e) {
-                                console.warn('Failed to fetch extra OFF results on Load more', e);
-                            } finally {
-                                // restore button state
-                                loadMoreBtn.disabled = false;
-                                loadMoreBtn.textContent = origText;
-                            }
+            // wire load more button
+            const loadMoreBtn = suggestionsDiv.querySelector('#pending-load-more-btn');
+            if (loadMoreBtn) {
+                loadMoreBtn.addEventListener('click', async () => {
+                    // show loading state on button
+                    loadMoreBtn.disabled = true;
+                    const origText = loadMoreBtn.textContent;
+                    loadMoreBtn.textContent = 'Lade mehr...';
+                    // increase offset and re-render using the full original set
+                    window._pendingOffset = (window._pendingOffset || 0) + PAGE_SIZE;
+                    // If we don't have enough items in the original array, try to fetch more from OFF
+                    const original = window._pendingSuggestionsOriginal || [];
+                    if ((original.length || 0) <= window._pendingOffset + PAGE_SIZE && off && typeof off.fetchOffProducts === 'function') {
+                        try {
+                            // attempt to fetch more candidates from OFF (ask for a larger max_results)
+                            const extra = await off.fetchOffProducts(window._pendingQuery || '', 60, 400);
+                            const existing = new Set((original || []).map(p => p.code));
+                            for (const p of extra) if (!existing.has(p.code)) original.push(p);
+                            window._pendingSuggestionsOriginal = original;
+                        } catch (e) {
+                            console.warn('Failed to fetch extra OFF results on Load more', e);
+                        } finally {
+                            // restore button state
+                            loadMoreBtn.disabled = false;
+                            loadMoreBtn.textContent = origText;
                         }
-                        // Re-render the suggestions using the updated original set
-                        const src = window._pendingSuggestionsOriginal && window._pendingSuggestionsOriginal.length ? window._pendingSuggestionsOriginal : suggestions;
-                        renderPendingSuggestions(src);
-                    });
-                }
+                    }
+                    // Re-render the suggestions using the updated original set
+                    const src = window._pendingSuggestionsOriginal && window._pendingSuggestionsOriginal.length ? window._pendingSuggestionsOriginal : suggestions;
+                    renderPendingSuggestions(src);
+                });
+            }
         });
         // (debug instrumentation removed) 
         // pre-select first suggestion and expose it globally so confirm button works
