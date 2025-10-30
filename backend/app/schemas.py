@@ -19,4 +19,6 @@ class Signup(SignupBase):
     created_at: datetime.datetime
 
     class Config:
-        orm_mode = True
+        # Pydantic V1 compatibility: in V2 this is 'from_attributes'
+        # Use model_config for Pydantic v2 while keeping comments for clarity.
+        model_config = {"from_attributes": True}

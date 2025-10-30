@@ -1,0 +1,61 @@
+# WirKaufenFair Backend Requirements
+# Python 3.12+
+
+# Web Framework
+fastapi==0.119.1
+uvicorn==0.38.0
+starlette==0.48.0
+
+# Database
+SQLAlchemy==2.0.44
+
+# Data Validation
+pydantic==2.8.2
+pydantic_core==2.20.1
+email-validator==2.3.0
+
+# File Uploads
+python-multipart==0.0.20
+
+# HTTP Client for API requests
+httpx==0.28.1
+requests==2.31.0
+
+# Environment Variables
+python-dotenv==1.0.0
+
+# Async Support
+anyio==4.11.0
+sniffio==1.3.1
+
+# Type Extensions
+typing_extensions==4.14.0
+
+# Core Dependencies
+click==8.2.1
+h11==0.16.0
+idna==3.10
+certifi==2025.6.15
+charset-normalizer==3.4.2
+urllib3==2.5.0
+
+# Optional: API Integrations
+aiohttp==3.9.1
+aiosignal==1.3.2
+frozenlist==1.7.0
+multidict==6.6.2
+yarl==1.20.1
+
+# Optional: Caching
+requests-cache==0.9.8
+aiohttp-client-cache==0.13.0
+cattrs==25.1.1
+
+# Optional: Template Engine (if needed for admin)
+Jinja2==3.1.6
+MarkupSafe==3.0.2
+
+# Optional: Additional Tools
+lxml==5.4.0
+PyYAML==6.0.1
+dnspython==2.8.0

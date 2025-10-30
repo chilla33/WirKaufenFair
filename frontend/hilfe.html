@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="de">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hilfe & Anleitung — WirKaufenFair</title>
+    <link rel="stylesheet" href="/style.css">
+    <style>
+        body {
+            background: var(--bg);
+            color: var(--text);
+            transition: background-color 0.3s, color 0.3s;
+            padding: 0;
+            margin: 0;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 24px auto;
+            padding: 0 16px;
+        }
+
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            padding: 32px;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px var(--shadow);
+            margin-bottom: 24px;
+        }
+
+        h1 {
+            color: var(--text);
+            margin-top: 0;
+            font-size: 32px;
+        }
+
+        h2 {
+            color: var(--text);
+            margin-top: 40px;
+            margin-bottom: 16px;
+            font-size: 24px;
+            border-bottom: 2px solid var(--accent);
+            padding-bottom: 8px;
+        }
+
+        h3 {
+            color: var(--text);
+            margin-top: 24px;
+            margin-bottom: 12px;
+            font-size: 18px;
+        }
+
+        p,
+        li {
+            color: var(--text-muted);
+            margin-bottom: 12px;
+            line-height: 1.7;
+        }
+
+        ul,
+        ol {
+            margin-left: 24px;
+            margin-bottom: 20px;
+        }
+
+        .feature-box {
+            background: rgba(14, 165, 164, 0.1);
+            border-left: 4px solid var(--accent);
+            padding: 16px;
+            border-radius: 6px;
+            margin: 20px 0;
+        }
+
+        .feature-box h3 {
+            margin-top: 0;
+            color: var(--accent);
+        }
+
+        .tip-box {
+            background: rgba(245, 158, 11, 0.1);
+            border-left: 4px solid #f59e0b;
+            padding: 16px;
+            border-radius: 6px;
+            margin: 20px 0;
+        }
+
+        .tip-box strong {
+            color: #f59e0b;
+        }
+
+        .warning-box {
+            background: rgba(239, 68, 68, 0.1);
+            border-left: 4px solid #ef4444;
+            padding: 16px;
+            border-radius: 6px;
+            margin: 20px 0;
+        }
+
+        .warning-box strong {
+            color: #ef4444;
+        }
+
+        code {
+            background: rgba(14, 165, 164, 0.1);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            color: var(--accent);
+        }
+
+        a {
+            color: var(--accent);
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        .toc {
+            background: var(--input-bg);
+            border: 1px solid var(--border);
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 32px;
+        }
+
+        .toc h3 {
+            margin-top: 0;
+            color: var(--text);
+        }
+
+        .toc ul {
+            margin-left: 0;
+            list-style: none;
+        }
+
+        .toc li {
+            margin-bottom: 8px;
+        }
+
+        .toc a {
+            display: block;
+            padding: 4px 0;
+        }
+
+        .screenshot {
+            max-width: 100%;
+            border-radius: 8px;
+            border: 2px solid var(--border);
+            margin: 16px 0;
+        }
+
+        .keyboard-shortcut {
+            display: inline-block;
+            background: var(--input-bg);
+            border: 1px solid var(--border);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 13px;
+            margin: 0 2px;
+        }
+    </style>
+</head>
+
+<body>
+    <header
+        style="background:var(--card);padding:12px 24px;display:flex;align-items:center;gap:12px;box-shadow:0 1px 2px var(--shadow);border-bottom:1px solid var(--border);">
+        <a href="/"><img src="/assets/logo.png" srcset="/assets/logo@2x.png 2x" alt="WirKaufenFair"
+                style="height:56px"></a>
+        <div style="font-weight:700;font-size:18px;color:var(--text);">WirKaufenFair</div>
+        <nav style="margin-left:auto;display:flex;gap:16px;align-items:center;">
+            <a href="/static/shopping_list.html" style="color:var(--text);">🛒 Einkaufsliste</a>
+            <a href="/" style="color:var(--text);">← Zurück</a>
+            <button id="theme-toggle" onclick="toggleTheme()"
+                style="background:var(--card);border:1px solid var(--border);color:var(--text);padding:8px 12px;border-radius:6px;cursor:pointer;font-size:18px;"
+                title="Design umschalten">
+                🌙
+            </button>
+        </nav>
+    </header>
+
+    <div class="container">
+        <div class="card">
+            <h1>📖 Hilfe & Anleitung</h1>
+            <p style="font-size:18px;color:var(--text);">
+                Lerne, wie du WirKaufenFair optimal nutzt, um fair und nachhaltig einzukaufen.
+            </p>
+
+            <!-- Inhaltsverzeichnis -->
+            <div class="toc">
+                <h3>📑 Inhaltsverzeichnis</h3>
+                <ul>
+                    <li><a href="#einstieg">🚀 Schnellstart</a></li>
+                    <li><a href="#funktionen">⚡ Hauptfunktionen</a></li>
+                    <li><a href="#listen">📋 Einkaufslisten verwalten</a></li>
+                    <li><a href="#produkte">🛍️ Produkte hinzufügen</a></li>
+                    <li><a href="#preise">💰 Preise & Scores</a></li>
+                    <li><a href="#ortung">📍 Ortungsdienste</a></li>
+                    <li><a href="#dark-mode">🌙 Dark Mode</a></li>
+                    <li><a href="#tipps">💡 Tipps & Tricks</a></li>
+                    <li><a href="#faq">❓ Häufige Fragen</a></li>
+                </ul>
+            </div>
+
+            <!-- Schnellstart -->
+            <h2 id="einstieg">🚀 Schnellstart</h2>
+            <p>In 3 einfachen Schritten zur fertigen Einkaufsliste:</p>
+            <ol>
+                <li><strong>Laden wählen</strong> (optional) – Wähle deinen bevorzugten Supermarkt aus dem Dropdown</li>
+                <li><strong>Produkte hinzufügen</strong> – Gib Menge und Produktname ein (z.B. "2L Milch")</li>
+                <li><strong>Liste nutzen</strong> – Teile die Liste oder nutze sie beim Einkaufen</li>
+            </ol>
+
+            <div class="tip-box">
+                <strong>💡 Tipp:</strong> Du kannst auch <strong>ohne Laden</strong> eine allgemeine Liste führen und
+                später einen Laden zuweisen!
+            </div>
+
+            <!-- Hauptfunktionen -->
+            <h2 id="funktionen">⚡ Hauptfunktionen</h2>
+
+            <div class="feature-box">
+                <h3>🏪 Multi-Store Support</h3>
+                <p>Führe <strong>mehrere Listen gleichzeitig</strong> für verschiedene Läden:</p>
+                <ul>
+                    <li>Separate Liste für REWE, EDEKA, ALDI, etc.</li>
+                    <li>Listen werden automatisch gespeichert (LocalStorage)</li>
+                    <li>Wechsel zwischen Läden ohne Datenverlust</li>
+                </ul>
+            </div>
+
+            <div class="feature-box">
+                <h3>🤖 Intelligentes Matching</h3>
+                <p>Die App findet automatisch passende Produkte:</p>
+                <ul>
+                    <li><strong>Lokale Datenbank</strong> – Produkte aus deinem gewählten Laden</li>
+                    <li><strong>OpenFoodFacts</strong> – Über 2 Mio. Produkte weltweit</li>
+                    <li><strong>Fuzzy-Matching</strong> – Auch bei Tippfehlern findest du das Richtige</li>
+                    <li><strong>Kategorie-Filter</strong> – Keine falschen Vorschläge (z.B. keine Butter bei
+                        Milch-Suche)</li>
+                </ul>
+            </div>
+
+            <div class="feature-box">
+                <h3>🌱 Nachhaltigkeits-Scores</h3>
+                <p>Sieh auf einen Blick, wie fair und nachhaltig ein Produkt ist:</p>
+                <ul>
+                    <li><strong>Eco-Score</strong> (A-E) – Umweltbilanz</li>
+                    <li><strong>Nutri-Score</strong> (A-E) – Nährwertqualität</li>
+                    <li><strong>Ethics-Score</strong> – Soziale Fairness</li>
+                    <li>✅ <strong>Fair-Badge</strong> für besonders nachhaltige Produkte</li>
+                </ul>
+            </div>
+
+            <!-- Listen verwalten -->
+            <h2 id="listen">📋 Einkaufslisten verwalten</h2>
+
+            <h3>Liste ohne Laden führen</h3>
+            <p>Du kannst jederzeit Produkte hinzufügen, auch ohne einen Laden auszuwählen:</p>
+            <ol>
+                <li>Dropdown bleibt auf "Laden auswählen..."</li>
+                <li>Gib Produkte wie gewohnt ein</li>
+                <li>Liste wird als <strong>"Allgemeine Liste"</strong> gespeichert</li>
+                <li>Später kannst du einen Laden wählen → neue separate Liste</li>
+            </ol>
+
+            <div class="tip-box">
+                <strong>💡 Anwendungsfall:</strong> Plane deinen Wocheneinkauf ohne dich auf einen Laden festzulegen.
+                Später verteilst du die Produkte auf verschiedene Läden.
+            </div>
+
+            <h3>Zwischen Listen wechseln</h3>
+            <p>Jeder Laden hat seine eigene Liste:</p>
+            <ul>
+                <li><strong>REWE</strong> → 5 Artikel gespeichert</li>
+                <li><strong>EDEKA</strong> → 3 Artikel gespeichert</li>
+                <li><strong>Allgemeine Liste</strong> (kein Laden) → 8 Artikel</li>
+            </ul>
+            <p>Wechsel einfach im Dropdown → die passende Liste wird geladen!</p>
+
+            <h3>Liste teilen / exportieren</h3>
+            <p>Klicke auf <strong>"📤 Teilen"</strong> um die Liste zu kopieren:</p>
+            <code style="display:block;white-space:pre;padding:12px;margin:12px 0;">🛒 Einkaufsliste — REWE Drochtersen
+📅 22.10.2025
+
+1. 1x Aldi Haltbare Fettarme Milch 1l — 1.99 €
+2. 2x Alpro Hafer Milch 1l — 5.98 €
+
+Gesamtsumme: ca. 7.97 €</code>
+            <p>Die Liste landet in deiner Zwischenablage und kann per WhatsApp, E-Mail etc. geteilt werden.</p>
+
+            <h3>Liste leeren</h3>
+            <p>Klicke auf <strong>"Liste leeren"</strong> → Bestätigungsdialog → Liste wird gelöscht (nur für aktuell
+                gewählten Laden).</p>
+
+            <!-- Produkte hinzufügen -->
+            <h2 id="produkte">🛍️ Produkte hinzufügen</h2>
+
+            <h3>Eingabe-Format</h3>
+            <p>Du kannst Menge und Produkt kombiniert oder getrennt eingeben:</p>
+            <ul>
+                <li><code>2L Milch</code> → 2 Liter Milch</li>
+                <li><code>300g Joghurt</code> → 300 Gramm Joghurt</li>
+                <li><code>5x Brot</code> → 5 Stück Brot</li>
+                <li><code>Milch</code> → 1x Milch (Standard-Menge)</li>
+            </ul>
+
+            <div class="tip-box">
+                <strong>💡 Tipp:</strong> Nutze <span class="keyboard-shortcut">Enter</span> nach der Mengen-Eingabe →
+                Cursor springt zum Produkt-Feld. Nochmal <span class="keyboard-shortcut">Enter</span> → Produkt wird
+                hinzugefügt!
+            </div>
+
+            <h3>Produkt-Auswahl</h3>
+            <p>Nach der Eingabe erscheint ein Dialog mit Vorschlägen:</p>
+            <ol>
+                <li><strong>Beste Treffer oben</strong> – Sortiert nach Match-Score und Fair-Score</li>
+                <li><strong>Grüner Haken ✓ Ausgewählt</strong> – Bereits markiertes Produkt</li>
+                <li><strong>Fair ✓ Badge</strong> – Besonders nachhaltige Produkte</li>
+                <li><strong>Scores sichtbar</strong> – Eco A, Nutri B, etc.</li>
+                <li><strong>Quelle</strong> – OFF (OpenFoodFacts) oder UNKNOWN (lokal)</li>
+            </ol>
+
+            <div class="feature-box">
+                <h3>🔍 Kategorie-Filter (NEU!)</h3>
+                <p>Die App filtert automatisch unpassende Produkte:</p>
+                <ul>
+                    <li><strong>Suche: "Milch"</strong> → Keine Butter-Vorschläge (auch wenn "Weidemilch" im Titel)</li>
+                    <li><strong>Suche: "Joghurt"</strong> → Nur Joghurt, keine Butter/Margarine</li>
+                    <li>Console-Log: <code>✗ Excluded (category filter): "Kerrygold Butter..."</code></li>
+                </ul>
+            </div>
+
+            <h3>Produkt zur Liste hinzufügen</h3>
+            <ol>
+                <li>Klicke auf ein Produkt → wird grün markiert ✓</li>
+                <li>Klicke <strong>"✓ Zur Einkaufsliste hinzufügen"</strong></li>
+                <li>Produkt erscheint in der Liste unten</li>
+            </ol>
+
+            <h3>Produkt bearbeiten</h3>
+            <p>Klicke auf <strong>▼</strong> (Details aufklappen) → <strong>"Produkt ändern"</strong> → Auswahl-Dialog
+                öffnet sich erneut.</p>
+
+            <!-- Produktdetails -->
+            <h2 id="details">📦 Produktdetails</h2>
+
+            <h3>Menge ändern</h3>
+            <p>Nutze die <strong>[−]</strong> und <strong>[+]</strong> Buttons neben dem Produkt:</p>
+            <ul>
+                <li><strong>Blaue Buttons</strong> mit deutlichem Rand (2px solid #0ea5e9)</li>
+                <li><strong>Größer</strong> (32x32px) für bessere Touch-Bedienung</li>
+                <li><strong>Schatten</strong> für mehr Tiefe</li>
+            </ul>
+
+            <h3>Produktbild vergrößern</h3>
+            <p>Klicke auf <strong>▼</strong> → Bild wird größer (64px → 128px). Klicke auf das Bild → öffnet in neuem
+                Tab (Vollbild).</p>
+
+            <h3>Notizen hinzufügen</h3>
+            <p>Klappt Details auf (<strong>▼</strong>) → Notizen-Feld erscheint:</p>
+            <ul>
+                <li>Tippe Notizen ein (z.B. "Bio-Variante nehmen")</li>
+                <li>Wird automatisch gespeichert beim Tippen</li>
+                <li>Erscheint auch im Export</li>
+            </ul>
+
+            <h3>Bewertung abgeben</h3>
+            <p>Klicke auf Sterne (★★★★★) um deine Bewertung abzugeben:</p>
+            <ul>
+                <li><strong>1 Stern</strong> – Nicht empfehlenswert</li>
+                <li><strong>3 Sterne</strong> – OK</li>
+                <li><strong>5 Sterne</strong> – Top Produkt!</li>
+            </ul>
+            <p>Bewertung wird gespeichert und im Export angezeigt.</p>
+
+            <!-- Preise -->
+            <h2 id="preise">💰 Preise & Scores</h2>
+
+            <h3>Preis-Anzeige</h3>
+            <p>Preise werden automatisch angezeigt, falls verfügbar:</p>
+            <ul>
+                <li><strong>Bestätigter Preis</strong> → <code>1.99 €</code></li>
+                <li><strong>Geschätzter Preis</strong> → <code>≈ 2.49 €</code> (mit ≈)</li>
+                <li><strong>Zeitstempel</strong> → <code>(heute)</code>, <code>(gestern)</code>, <code>(vor 3d)</code>
+                </li>
+                <li><strong>Gesamtpreis</strong> → Bei mehreren Stück: <code>5.98 € (2x à 2.99 €)</code></li>
+            </ul>
+
+            <h3>Preis melden</h3>
+            <p>Wenn kein Preis vorhanden ist, kannst du ihn melden:</p>
+            <ol>
+                <li>Klappt Details auf (<strong>▼</strong>)</li>
+                <li>Feld "Preis €" erscheint</li>
+                <li><strong>Ohne gewählten Laden:</strong> Dropdown "Laden wählen..." erscheint zusätzlich</li>
+                <li>Wähle den Laden aus (falls nicht schon gewählt)</li>
+                <li>Gib den aktuellen Preis ein</li>
+                <li>Klicke <strong>"Preis melden"</strong></li>
+            </ol>
+
+            <div class="feature-box">
+                <h3>✨ NEU: Preis melden ohne Laden-Auswahl!</h3>
+                <p>Du kannst jetzt auch Preise melden, wenn du <strong>keine Liste für einen bestimmten Laden</strong>
+                    führst:</p>
+                <ul>
+                    <li>Führe eine <strong>allgemeine Liste</strong> (kein Laden gewählt)</li>
+                    <li>Klappe Produktdetails auf → Preis-Melden-Feld erscheint</li>
+                    <li><strong>Laden-Dropdown</strong> erscheint automatisch neben "Preis €"</li>
+                    <li>Wähle den Laden aus, für den der Preis gilt</li>
+                    <li>Melde den Preis → wird dem gewählten Laden zugeordnet</li>
+                </ul>
+                <p><strong>Vorteil:</strong> Du kannst Preise für verschiedene Läden in einer Liste melden!</p>
+            </div>
+
+            <h3>Gesamtsumme</h3>
+            <p>Unten in der Liste siehst du die Gesamtsumme:</p>
+            <ul>
+                <li><strong>Anzahl Artikel</strong> – z.B. "3 Artikel"</li>
+                <li><strong>Preis-Status</strong> – "(2 bestätigt, 1 geschätzt)"</li>
+                <li><strong>Gesamt</strong> – <code>ca. 15.47 €</code></li>
+            </ul>
+
+            <!-- Ortungsdienste -->
+            <h2 id="ortung">📍 Ortungsdienste</h2>
+
+            <h3>Warum Standort?</h3>
+            <p>Die App kann deinen Standort nutzen, um:</p>
+            <ul>
+                <li><strong>Nächste Läden zuerst</strong> – Dropdown sortiert nach Entfernung</li>
+                <li><strong>Entfernungs-Anzeige</strong> – "REWE Drochtersen (2.3 km)"</li>
+                <li><strong>Keine Speicherung</strong> – Position wird nicht auf Server gesendet</li>
+            </ul>
+
+            <h3>Banner erlauben / ablehnen</h3>
+            <p>Beim ersten Besuch erscheint ein blauer Banner:</p>
+            <div
+                style="background:linear-gradient(135deg,#0ea5e9,#06b6d4);color:white;padding:16px;border-radius:8px;margin:16px 0;">
+                <strong>📍 Ortungsdienste aktivieren?</strong><br>
+                Wir zeigen dir die nächstgelegenen Läden zuerst. Deine Position wird nicht gespeichert.
+                <div style="margin-top:12px;display:flex;gap:12px;">
+                    <button
+                        style="background:white;color:#0ea5e9;padding:8px 16px;border:none;border-radius:6px;font-weight:700;">Erlauben</button>
+                    <button
+                        style="background:rgba(255,255,255,0.2);color:white;padding:8px 16px;border:none;border-radius:6px;">✕</button>
+                </div>
+            </div>
+            <ul>
+                <li><strong>Erlauben</strong> → Browser fragt nach Berechtigung → Banner verschwindet</li>
+                <li><strong>✕ (Ablehnen)</strong> → Banner verschwindet dauerhaft</li>
+                <li>Banner erscheint nicht mehr nach Entscheidung (LocalStorage)</li>
+            </ul>
+
+            <!-- Dark Mode -->
+            <h2 id="dark-mode">🌙 Dark Mode</h2>
+
+            <h3>Automatische Erkennung</h3>
+            <p>Die App passt sich automatisch an deine System-Einstellung an:</p>
+            <ul>
+                <li><strong>Windows/Mac Dark Mode</strong> → App ist dunkel</li>
+                <li><strong>Windows/Mac Light Mode</strong> → App ist hell</li>
+            </ul>
+
+            <h3>Manueller Toggle</h3>
+            <p>Klicke oben rechts auf <strong>🌙</strong> / <strong>☀️</strong>:</p>
+            <ul>
+                <li><strong>🌙</strong> → Wechselt zu Dark Mode</li>
+                <li><strong>☀️</strong> → Wechselt zu Light Mode</li>
+                <li>Einstellung wird gespeichert (LocalStorage)</li>
+                <li>Gilt für alle Seiten (Shopping-List, Impressum, Hilfe)</li>
+            </ul>
+
+            <h3>Farben</h3>
+            <p><strong>Light Mode:</strong></p>
+            <ul>
+                <li>Hintergrund: <code>#f7faf9</code> (hellgrau)</li>
+                <li>Cards: <code>#ffffff</code> (weiß)</li>
+                <li>Text: <code>#0f172a</code> (dunkelblau)</li>
+            </ul>
+            <p><strong>Dark Mode:</strong></p>
+            <ul>
+                <li>Hintergrund: <code>#0f172a</code> (dunkelblau)</li>
+                <li>Cards: <code>#1e293b</code> (grau-blau)</li>
+                <li>Text: <code>#f1f5f9</code> (hellgrau)</li>
+            </ul>
+
+            <!-- Tipps & Tricks -->
+            <h2 id="tipps">💡 Tipps & Tricks</h2>
+
+            <h3>⌨️ Keyboard-Shortcuts</h3>
+            <ul>
+                <li><span class="keyboard-shortcut">Enter</span> im Mengen-Feld → Springt zu Produkt-Feld</li>
+                <li><span class="keyboard-shortcut">Enter</span> im Produkt-Feld → Fügt Produkt hinzu</li>
+            </ul>
+
+            <h3>🎯 Schnell-Einkauf</h3>
+            <p>Für häufige Produkte:</p>
+            <ol>
+                <li>Lass das Mengen-Feld leer → Standard ist 1x</li>
+                <li>Tippe nur Produktname → <span class="keyboard-shortcut">Enter</span></li>
+                <li>Wähle aus Vorschlägen → <strong>Enter</strong> oder Klick</li>
+            </ol>
+
+            <h3>📦 Mengeneingabe-Varianten</h3>
+            <ul>
+                <li><code>2L</code>, <code>2 Liter</code>, <code>2l</code> → alles OK!</li>
+                <li><code>300g</code>, <code>300 Gramm</code>, <code>0.3kg</code> → funktioniert</li>
+                <li><code>5x</code>, <code>5 Stück</code>, <code>5 St</code> → alle gleich</li>
+            </ul>
+
+            <h3>🔄 Liste duplizieren</h3>
+            <p>So kopierst du eine Liste zu einem anderen Laden:</p>
+            <ol>
+                <li>Öffne "Allgemeine Liste"</li>
+                <li>Klicke "Teilen" → Liste ist in Zwischenablage</li>
+                <li>Wähle anderen Laden (z.B. REWE)</li>
+                <li>Füge Produkte manuell aus der kopierten Liste hinzu</li>
+            </ol>
+
+            <div class="tip-box">
+                <strong>💡 Geplant:</strong> In Zukunft wird es einen "Liste kopieren"-Button geben, der automatisch
+                alle Produkte in die neue Laden-Liste übernimmt und Verfügbarkeit prüft.
+            </div>
+
+            <!-- FAQ -->
+            <h2 id="faq">❓ Häufige Fragen</h2>
+
+            <h3>Warum sehe ich keine Läden im Dropdown?</h3>
+            <ol>
+                <li>Öffne Browser-Console (<span class="keyboard-shortcut">F12</span> → Console)</li>
+                <li>Suche nach: <code>✅ Stores loaded successfully. Total options: X</code></li>
+                <li>Falls <code>Total options: 1</code> → Nur "Laden wählen..." vorhanden</li>
+                <li>Prüfe: <code>Store groups:</code> und <code>Chains found:</code> Logs</li>
+                <li>Falls leer → API-Problem oder Datenbank leer</li>
+            </ol>
+            <p><strong>Fix:</strong> Statische Ketten (REWE, EDEKA, ALDI, LIDL, PENNY, NETTO, dm, ROSSMANN) sollten
+                trotzdem erscheinen. Falls nicht → Browser-Cache leeren.</p>
+
+            <h3>Warum matched "Milch" auch "Butter aus Weidemilch"?</h3>
+            <p>Das sollte <strong>nicht mehr passieren</strong>! Die neue Kategorie-Filterung schließt Butter bei
+                Milch-Suchen aus. Falls es trotzdem passiert:</p>
+            <ol>
+                <li>Öffne Console (<span class="keyboard-shortcut">F12</span>)</li>
+                <li>Suche nach <code>✗ Excluded (category filter):</code></li>
+                <li>Falls nicht da → Reload die Seite</li>
+                <li>Immer noch Problem? → Melde es!</li>
+            </ol>
+
+            <h3>Meine Liste ist nach Reload weg!</h3>
+            <p>Das sollte nicht passieren! Listen werden in LocalStorage gespeichert. Prüfe:</p>
+            <ol>
+                <li>Nutzt du <strong>Privater Modus / Inkognito</strong>? → LocalStorage wird gelöscht</li>
+                <li>Hast du <strong>Browser-Daten gelöscht</strong>? → LocalStorage weg</li>
+                <li>Nutzt du <strong>verschiedene Browser</strong>? → Jeder Browser hat eigenen LocalStorage</li>
+            </ol>
+
+            <h3>Wie lösche ich eine Liste dauerhaft?</h3>
+            <ol>
+                <li>Wähle den Laden aus</li>
+                <li>Klicke "Liste leeren"</li>
+                <li>Bestätige</li>
+                <li>Liste ist weg (nur für diesen Laden!)</li>
+            </ol>
+
+            <h3>Kann ich Listen über Geräte synchronisieren?</h3>
+            <p><strong>Aktuell nicht.</strong> Listen sind nur im LocalStorage des Browsers gespeichert. Geplant für die
+                Zukunft:</p>
+            <ul>
+                <li>Cloud-Sync via Account</li>
+                <li>QR-Code Export/Import</li>
+                <li>Teilen via Link</li>
+            </ul>
+
+            <h3>Warum kann ich keinen Preis melden?</h3>
+            <p>Preis melden funktioniert, wenn:</p>
+            <ul>
+                <li>✅ Das Produkt eine <strong>ID hat</strong> (Barcode oder Name)</li>
+                <li>✅ Backend-Server <strong>läuft</strong></li>
+                <li>✅ Du einen <strong>Laden auswählst</strong> (global oder im Preis-Melden-Dropdown)</li>
+            </ul>
+            <p><strong>Neue Funktion:</strong> Du musst keinen Laden mehr global wählen! Beim Preis melden erscheint
+                automatisch ein Laden-Dropdown, wenn kein Laden gewählt ist.</p>
+            <p>Fehlermeldung: <code>"Bitte wähle einen Laden aus..."</code> → Wähle Laden im Dropdown neben dem
+                Preis-Feld!</p>
+
+            <h3>Was bedeuten die Scores?</h3>
+            <ul>
+                <li><strong>Eco-Score (A-E):</strong> Umweltbilanz (CO₂, Wasser, Verpackung)</li>
+                <li><strong>Nutri-Score (A-E):</strong> Nährwertqualität (Zucker, Fett, Salz)</li>
+                <li><strong>Ethics-Score:</strong> Soziale Fairness (Arbeitsbedingungen, Fair Trade)</li>
+            </ul>
+            <p><strong>A</strong> = Sehr gut, <strong>E</strong> = Schlecht</p>
+
+            <h3>Wie kann ich helfen?</h3>
+            <p>WirKaufenFair ist ein Open-Source-Community-Projekt! Du kannst helfen:</p>
+            <ul>
+                <li><strong>Preise melden</strong> → Je mehr Nutzer Preise teilen, desto besser!</li>
+                <li><strong>Produkte vorschlagen</strong> → Fehlendes Produkt? Melde es!</li>
+                <li><strong>Code beitragen</strong> → <a href="https://github.com/chilla33/WirkaufenFair"
+                        target="_blank">GitHub Repository</a></li>
+                <li><strong>Feedback geben</strong> → <a
+                        href="mailto:kontakt@wirkaufenfair.de">kontakt@wirkaufenfair.de</a></li>
+            </ul>
+
+            <hr style="margin:40px 0;border:none;border-top:1px solid var(--border);">
+
+            <p style="text-align:center;color:var(--text-muted);">
+                Weitere Fragen? Schreib uns: <a href="mailto:kontakt@wirkaufenfair.de">kontakt@wirkaufenfair.de</a>
+            </p>
+        </div>
+    </div>
+
+    <footer style="background:var(--card);border-top:1px solid var(--border);padding:24px;margin-top:48px;">
+        <div
+            style="max-width:900px;margin:0 auto;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px;">
+            <div style="color:var(--text-muted);font-size:14px;">
+                © 2025 WirKaufenFair – Gemeinsam fair einkaufen
+            </div>
+            <div style="display:flex;gap:20px;font-size:14px;">
+                <a href="/static/impressum.html" style="color:var(--text);text-decoration:none;font-weight:500;">📄
+                    Impressum</a>
+                <a href="/static/datenschutz.html" style="color:var(--text);text-decoration:none;font-weight:500;">🔒
+                    Datenschutz</a>
+                <a href="/static/hilfe.html" style="color:var(--text);text-decoration:none;font-weight:500;">❓ Hilfe</a>
+                <a href="mailto:kontakt@wirkaufenfair.de"
+                    style="color:var(--text);text-decoration:none;font-weight:500;">✉️ Kontakt</a>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Dark Mode Toggle (same as other pages)
+        function initTheme() {
+            const savedTheme = localStorage.getItem('theme');
+            if (savedTheme) {
+                document.documentElement.setAttribute('data-theme', savedTheme);
+                updateThemeIcon(savedTheme);
+            } else {
+                const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                updateThemeIcon(prefersDark ? 'dark' : 'light');
+            }
+        }
+
+        function toggleTheme() {
+            const current = document.documentElement.getAttribute('data-theme');
+            const newTheme = current === 'dark' ? 'light' : 'dark';
+
+            document.documentElement.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            updateThemeIcon(newTheme);
+        }
+
+        function updateThemeIcon(theme) {
+            const btn = document.getElementById('theme-toggle');
+            if (btn) {
+                btn.textContent = theme === 'dark' ? '☀️' : '🌙';
+                btn.title = theme === 'dark' ? 'Heller Modus' : 'Dunkler Modus';
+            }
+        }
+
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+            if (!localStorage.getItem('theme')) {
+                updateThemeIcon(e.matches ? 'dark' : 'light');
+            }
+        });
+
+        initTheme();
+
+        // Smooth scroll to anchor
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            });
+        });
+    </script>
+</body>
+
+</html>

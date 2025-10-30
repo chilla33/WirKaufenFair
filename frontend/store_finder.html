@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="de">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Läden finden & importieren — WirkaufenFair</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background: #f8fafc;
+            padding: 24px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .card {
+            background: white;
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            margin-bottom: 24px;
+        }
+
+        h1 {
+            color: #0f172a;
+            margin-bottom: 16px;
+        }
+
+        h2 {
+            color: #1e293b;
+            font-size: 18px;
+            margin: 24px 0 12px 0;
+        }
+
+        .search-section {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+
+        .search-section input {
+            flex: 1;
+            padding: 12px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+
+        .search-section button {
+            padding: 12px 24px;
+            background: #0ea5e9;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .search-section button:disabled {
+            background: #94a3b8;
+            cursor: not-allowed;
+        }
+
+        #map {
+            width: 100%;
+            height: 500px;
+            border-radius: 12px;
+            background: #f1f5f9;
+        }
+
+        .results-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 16px;
+            margin-top: 24px;
+        }
+
+        .store-card {
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 16px;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+
+        .store-card:hover {
+            border-color: #0ea5e9;
+            background: #f0f9ff;
+        }
+
+        .store-card.selected {
+            border-color: #22c55e;
+            background: #f0fdf4;
+        }
+
+        .store-name {
+            font-weight: 700;
+            color: #0f172a;
+            font-size: 16px;
+            margin-bottom: 4px;
+        }
+
+        .store-address {
+            font-size: 13px;
+            color: #64748b;
+            margin-bottom: 8px;
+        }
+
+        .store-distance {
+            display: inline-block;
+            background: #f1f5f9;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            color: #475569;
+        }
+
+        .store-rating {
+            margin-left: 8px;
+            color: #f59e0b;
+        }
+
+        .store-actions {
+            margin-top: 12px;
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn-import {
+            padding: 8px 14px;
+            background: #22c55e;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .btn-import.imported {
+            background: #94a3b8;
+            cursor: default;
+        }
+
+        .info-box {
+            background: #fef3c7;
+            border: 1px solid #fbbf24;
+            border-radius: 8px;
+            padding: 16px;
+            margin: 16px 0;
+        }
+
+        .info-box strong {
+            color: #92400e;
+        }
+
+        .spinner {
+            border: 3px solid #f3f4f6;
+            border-top: 3px solid #0ea5e9;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 24px auto;
+            display: none;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .stats {
+            display: flex;
+            gap: 24px;
+            margin-top: 16px;
+        }
+
+        .stat {
+            background: #f8fafc;
+            padding: 12px 20px;
+            border-radius: 8px;
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: #0ea5e9;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #64748b;
+            margin-top: 4px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="card">
+            <h1>🗺️ Läden in der Nähe finden</h1>
+            <p style="color:#475569;margin-bottom:16px;">
+                Finde automatisch Supermärkte, Discounter und Drogeriemärkte über Google Maps/OpenStreetMap
+                und importiere sie mit offiziellen Namen, Adressen und Koordinaten.
+            </p>
+
+            <div class="info-box">
+                <strong>💡 Tipp:</strong> Erlaube Standortzugriff für beste Ergebnisse.
+                Alternativ: Stadt eingeben (z.B. "Drochtersen") für Umkreissuche.
+            </div>
+
+            <div class="search-section">
+                <input type="text" id="location-input" placeholder="Stadt oder PLZ eingeben (z.B. Drochtersen, 21706)">
+                <select id="chain-filter">
+                    <option value="">Alle Ketten</option>
+                    <option value="REWE">REWE</option>
+                    <option value="EDEKA">EDEKA</option>
+                    <option value="ALDI">ALDI</option>
+                    <option value="LIDL">LIDL</option>
+                    <option value="PENNY">PENNY</option>
+                    <option value="NETTO">NETTO</option>
+                    <option value="KAUFLAND">KAUFLAND</option>
+                    <option value="dm">dm</option>
+                    <option value="ROSSMANN">ROSSMANN</option>
+                </select>
+                <button id="search-btn" onclick="searchNearbyStores()">🔍 Suchen</button>
+            </div>
+
+            <div class="stats" id="stats" style="display:none;">
+                <div class="stat">
+                    <div class="stat-value" id="found-count">0</div>
+                    <div class="stat-label">Gefunden</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value" id="imported-count">0</div>
+                    <div class="stat-label">Importiert</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value" id="radius-value">5 km</div>
+                    <div class="stat-label">Radius</div>
+                </div>
+            </div>
+
+            <div id="map"></div>
+            <div class="spinner" id="spinner"></div>
+        </div>
+
+        <div class="card">
+            <h2>📋 Gefundene Läden</h2>
+            <div class="results-grid" id="results"></div>
+        </div>
+
+        <div class="card">
+            <h2>🛠️ API-Konfiguration</h2>
+            <p style="color:#475569;margin-bottom:12px;">
+                <strong>Option 1: Google Maps Places API</strong> (empfohlen)<br>
+                • 200€ Guthaben pro Monat kostenlos<br>
+                • Sehr genaue Daten + Öffnungszeiten<br>
+                • <a href="https://developers.google.com/maps/documentation/places/web-service"
+                    target="_blank">Anleitung</a>
+            </p>
+            <p style="color:#475569;margin-bottom:12px;">
+                <strong>Option 2: OpenStreetMap Overpass API</strong> (kostenlos)<br>
+                • Komplett kostenlos, Open Source<br>
+                • Community-Daten (manchmal unvollständig)<br>
+                • <a href="https://wiki.openstreetmap.org/wiki/Overpass_API" target="_blank">Anleitung</a>
+            </p>
+            <div style="margin-top:16px;">
+                <label style="display:block;margin-bottom:8px;font-weight:600;color:#475569;">
+                    Google Maps API Key (optional):
+                </label>
+                <input type="text" id="api-key-input" placeholder="AIzaSyC..."
+                    style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:6px;">
+                <p style="font-size:12px;color:#64748b;margin-top:8px;">
+                    Ohne API Key wird OpenStreetMap verwendet (kostenlos, aber weniger genau)
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let foundStores = [];
+        let importedCount = 0;
+        let userLocation = null;
+        let map = null;
+
+        // Hole Standort beim Laden
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                    userLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+                    document.getElementById('location-input').placeholder =
+                        `Dein Standort (${userLocation.lat.toFixed(4)}, ${userLocation.lng.toFixed(4)})`;
+                    initMap();
+                },
+                (err) => {
+                    console.warn('Geo-Location denied:', err);
+                    initMap();
+                }
+            );
+        } else {
+            initMap();
+        }
+
+        function initMap() {
+            // Einfache Karte mit Leaflet (OpenStreetMap)
+            const mapDiv = document.getElementById('map');
+            mapDiv.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#64748b;">🗺️ Karte wird geladen...</div>';
+
+            // Hinweis: In Produktion Leaflet.js einbinden
+            if (typeof L !== 'undefined') {
+                map = L.map('map').setView(
+                    userLocation ? [userLocation.lat, userLocation.lng] : [53.5, 9.5],
+                    13
+                );
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+            }
+        }
+
+        async function searchNearbyStores() {
+            const locationInput = document.getElementById('location-input').value.trim();
+            const chainFilter = document.getElementById('chain-filter').value;
+            const apiKey = document.getElementById('api-key-input').value.trim();
+
+            document.getElementById('spinner').style.display = 'block';
+            document.getElementById('results').innerHTML = '';
+
+            let searchLocation = userLocation;
+
+            // Falls Stadt/PLZ eingegeben → Geocoding
+            if (locationInput) {
+                try {
+                    searchLocation = await geocodeLocation(locationInput, apiKey);
+                } catch (e) {
+                    alert('Ort nicht gefunden. Bitte überprüfe die Eingabe.');
+                    document.getElementById('spinner').style.display = 'none';
+                    return;
+                }
+            }
+
+            if (!searchLocation) {
+                alert('Bitte erlaube Standortzugriff oder gib einen Ort ein!');
+                document.getElementById('spinner').style.display = 'none';
+                return;
+            }
+
+            try {
+                if (apiKey) {
+                    // Google Maps API
+                    foundStores = await searchGoogleMaps(searchLocation, chainFilter, apiKey);
+                } else {
+                    // OpenStreetMap Overpass API
+                    foundStores = await searchOpenStreetMap(searchLocation, chainFilter);
+                }
+
+                displayResults(foundStores);
+                updateStats();
+            } catch (e) {
+                console.error('Search error:', e);
+                alert('Fehler bei der Suche: ' + e.message);
+            }
+
+            document.getElementById('spinner').style.display = 'none';
+        }
+
+        async function geocodeLocation(location, apiKey) {
+            if (apiKey) {
+                // Google Geocoding
+                const res = await fetch(
+                    `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(location)}&key=${apiKey}`
+                );
+                const data = await res.json();
+                if (data.results && data.results.length > 0) {
+                    return data.results[0].geometry.location;
+                }
+            } else {
+                // Nominatim (OpenStreetMap)
+                const res = await fetch(
+                    `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(location)}&format=json&limit=1`
+                );
+                const data = await res.json();
+                if (data && data.length > 0) {
+                    return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+                }
+            }
+            throw new Error('Location not found');
+        }
+
+        async function searchGoogleMaps(location, chain, apiKey) {
+            const radius = 5000; // 5 km
+            const types = 'supermarket|grocery_or_supermarket';
+            const keyword = chain || 'supermarket';
+
+            const res = await fetch(
+                `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${location.lat},${location.lng}&radius=${radius}&type=${types}&keyword=${keyword}&key=${apiKey}`
+            );
+
+            const data = await res.json();
+
+            return data.results.map(place => ({
+                id: place.place_id,
+                name: place.name,
+                address: place.vicinity,
+                lat: place.geometry.location.lat,
+                lng: place.geometry.location.lng,
+                rating: place.rating || null,
+                chain: detectChain(place.name),
+                distance: calculateDistance(location, place.geometry.location),
+                source: 'google'
+            }));
+        }
+
+        async function searchOpenStreetMap(location, chain) {
+            const radius = 5000; // 5 km
+            const query = `
+                [out:json];
+                (
+                    node["shop"="supermarket"](around:${radius},${location.lat},${location.lng});
+                    way["shop"="supermarket"](around:${radius},${location.lat},${location.lng});
+                );
+                out center;
+            `;
+
+            const res = await fetch('https://overpass-api.de/api/interpreter', {
+                method: 'POST',
+                body: query
+            });
+
+            const data = await res.json();
+
+            const stores = data.elements.map(element => {
+                const lat = element.lat || element.center?.lat;
+                const lng = element.lon || element.center?.lon;
+                const name = element.tags?.name || 'Unbekannt';
+
+                return {
+                    id: element.id,
+                    name: name,
+                    address: formatOSMAddress(element.tags),
+                    lat: lat,
+                    lng: lng,
+                    chain: detectChain(name),
+                    distance: calculateDistance(location, { lat, lng }),
+                    source: 'osm'
+                };
+            });
+
+            // Filter nach Kette falls gewünscht
+            if (chain) {
+                return stores.filter(s => s.chain === chain);
+            }
+
+            return stores.sort((a, b) => a.distance - b.distance);
+        }
+
+        function detectChain(name) {
+            const chains = ['REWE', 'EDEKA', 'ALDI', 'LIDL', 'PENNY', 'NETTO', 'KAUFLAND', 'dm', 'ROSSMANN'];
+            for (const chain of chains) {
+                if (name.toUpperCase().includes(chain)) {
+                    return chain;
+                }
+            }
+            return null;
+        }
+
+        function formatOSMAddress(tags) {
+            const parts = [];
+            if (tags['addr:street']) parts.push(tags['addr:street']);
+            if (tags['addr:housenumber']) parts.push(tags['addr:housenumber']);
+            if (tags['addr:postcode']) parts.push(tags['addr:postcode']);
+            if (tags['addr:city']) parts.push(tags['addr:city']);
+            return parts.join(', ') || 'Adresse unbekannt';
+        }
+
+        function calculateDistance(loc1, loc2) {
+            // Haversine formula
+            const R = 6371; // km
+            const dLat = (loc2.lat - loc1.lat) * Math.PI / 180;
+            const dLng = (loc2.lng - loc1.lng) * Math.PI / 180;
+            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(loc1.lat * Math.PI / 180) * Math.cos(loc2.lat * Math.PI / 180) *
+                Math.sin(dLng / 2) * Math.sin(dLng / 2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            return R * c;
+        }
+
+        function displayResults(stores) {
+            const container = document.getElementById('results');
+
+            if (stores.length === 0) {
+                container.innerHTML = '<p style="color:#64748b;text-align:center;padding:40px;">Keine Läden gefunden. Versuche einen anderen Ort oder Radius.</p>';
+                return;
+            }
+
+            container.innerHTML = stores.map((store, i) => `
+                <div class="store-card" id="store-${i}">
+                    <div class="store-name">${store.name}</div>
+                    <div class="store-address">📍 ${store.address}</div>
+                    <div>
+                        <span class="store-distance">${store.distance.toFixed(1)} km</span>
+                        ${store.rating ? `<span class="store-rating">⭐ ${store.rating}</span>` : ''}
+                    </div>
+                    <div class="store-actions">
+                        <button class="btn-import" onclick="importStore(${i})" id="import-btn-${i}">
+                            ✓ Importieren
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+
+            document.getElementById('stats').style.display = 'flex';
+        }
+
+        async function importStore(index) {
+            const store = foundStores[index];
+            const btn = document.getElementById(`import-btn-${index}`);
+
+            btn.disabled = true;
+            btn.textContent = '⏳ Importiere...';
+
+            try {
+                // Erstelle Laden in DB (via store_models.py Store-Tabelle)
+                const res = await fetch('/api/v1/stores', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        chain: store.chain || store.name.split(' ')[0],
+                        location: store.name.replace(store.chain, '').trim() || store.address.split(',')[1]?.trim(),
+                        full_name: store.name,
+                        address: store.address,
+                        latitude: store.lat,
+                        longitude: store.lng,
+                        postal_code: extractPostalCode(store.address),
+                        city: extractCity(store.address)
+                    })
+                });
+
+                if (res.ok) {
+                    btn.classList.add('imported');
+                    btn.textContent = '✓ Importiert';
+                    document.getElementById(`store-${index}`).classList.add('selected');
+                    importedCount++;
+                    updateStats();
+                } else {
+                    throw new Error('Server error');
+                }
+            } catch (e) {
+                console.error('Import error:', e);
+                btn.disabled = false;
+                btn.textContent = '✓ Importieren';
+                alert('Fehler beim Importieren: ' + e.message);
+            }
+        }
+
+        function extractPostalCode(address) {
+            const match = address.match(/\b\d{5}\b/);
+            return match ? match[0] : null;
+        }
+
+        function extractCity(address) {
+            const parts = address.split(',');
+            return parts[parts.length - 1]?.trim() || null;
+        }
+
+        function updateStats() {
+            document.getElementById('found-count').textContent = foundStores.length;
+            document.getElementById('imported-count').textContent = importedCount;
+        }
+    </script>
+
+    <!-- Optional: Leaflet für Karte -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</body>
+
+</html>

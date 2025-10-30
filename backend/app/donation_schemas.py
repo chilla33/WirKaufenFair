@@ -17,4 +17,5 @@ class Donation(DonationCreate):
     created_at: datetime.datetime
 
     class Config:
-        orm_mode = True
+        # Pydantic V1 compatibility: in V2 this is 'from_attributes'
+        model_config = {"from_attributes": True}

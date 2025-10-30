@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="de">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Impressum & Haftungsausschluss — WirkaufenFair</title>
+    <link rel="stylesheet" href="/style.css">
+    <style>
+        body {
+            background: var(--bg);
+            color: var(--text);
+            transition: background-color 0.3s, color 0.3s;
+            padding: 0;
+            margin: 0;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 24px auto;
+            padding: 0 16px;
+        }
+
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            padding: 32px;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px var(--shadow);
+        }
+
+        h1 {
+            color: var(--text);
+            margin-bottom: 24px;
+        }
+
+        h2 {
+            color: var(--text);
+            margin-top: 32px;
+            margin-bottom: 16px;
+            font-size: 20px;
+        }
+
+        p,
+        li {
+            color: var(--text-muted);
+            margin-bottom: 12px;
+            line-height: 1.6;
+        }
+
+        ul {
+            margin-left: 24px;
+        }
+
+        .highlight {
+            background: rgba(254, 243, 199, 0.3);
+            padding: 16px;
+            border-radius: 8px;
+            margin: 24px 0;
+            border-left: 4px solid #f59e0b;
+        }
+
+        .highlight strong {
+            color: var(--text);
+        }
+
+        a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+
+<body>
+    <header
+        style="background:var(--card);padding:12px 24px;display:flex;align-items:center;gap:12px;box-shadow:0 1px 2px var(--shadow);border-bottom:1px solid var(--border);">
+        <a href="/"><img src="/assets/logo.png" srcset="/assets/logo@2x.png 2x" alt="WirKaufenFair"
+                style="height:56px"></a>
+        <div style="font-weight:700;font-size:18px;color:var(--text);">WirKaufenFair</div>
+        <nav style="margin-left:auto;display:flex;gap:16px;align-items:center;">
+            <a href="/static/shopping_list.html" style="color:var(--text);">🛒 Einkaufsliste</a>
+            <a href="/" style="color:var(--text);">← Zurück</a>
+            <button id="theme-toggle" onclick="toggleTheme()"
+                style="background:var(--card);border:1px solid var(--border);color:var(--text);padding:8px 12px;border-radius:6px;cursor:pointer;font-size:18px;"
+                title="Design umschalten">
+                🌙
+            </button>
+        </nav>
+    </header>
+
+    <div class="container">
+        <div class="card">
+            <h1>⚖️ Impressum & Haftungsausschluss</h1>
+
+            <h2>Angaben gemäß § 5 TMG</h2>
+            <p>
+                [Hier deine Kontaktdaten einfügen]<br>
+                Name: [Dein Name/Firmenname]<br>
+                Adresse: [Straße, PLZ Ort]<br>
+                E-Mail: [kontakt@example.com]
+            </p>
+
+            <h2>🛒 Haftungsausschluss für Community-Daten</h2>
+
+            <div class="highlight">
+                <strong>⚠️ WICHTIG: Alle Preise, Produktstandorte und Bewertungen sind unverbindliche Community-Beiträge
+                    ohne Gewähr!</strong>
+            </div>
+
+            <h3>1. Preisangaben</h3>
+            <p>
+                Die auf dieser Plattform angezeigten Preise werden von Nutzern freiwillig gemeldet und durch
+                Community-Voting verifiziert.
+                <strong>Wir übernehmen keine Garantie für die Richtigkeit, Vollständigkeit oder Aktualität der
+                    Preisinformationen.</strong>
+            </p>
+            <ul>
+                <li>Preise können sich jederzeit ohne Vorankündigung ändern</li>
+                <li>Lokale Preisunterschiede zwischen Filialen sind möglich</li>
+                <li>Angebote und Aktionen können zeitlich begrenzt sein</li>
+                <li>Tipp- und Eingabefehler sind möglich</li>
+            </ul>
+            <p>
+                <strong>Bitte prüfen Sie den Preis stets vor dem Kauf im jeweiligen Geschäft.</strong>
+            </p>
+
+            <h3>2. Produktstandorte (Gang/Regal)</h3>
+            <p>
+                Die Angaben zu Produktstandorten (Gang, Regal) stammen ebenfalls von der Community und können veraltet
+                oder
+                falsch sein.
+                <strong>Wir haften nicht für Zeitverlust oder Unannehmlichkeiten bei der Produktsuche.</strong>
+            </p>
+
+            <h3>3. Bewertungen und Produktinformationen</h3>
+            <p>
+                Nutzerbewertungen und Produktbeschreibungen spiegeln die subjektive Meinung einzelner Nutzer wider.
+                <strong>Wir übernehmen keine Haftung für die Richtigkeit oder Vollständigkeit dieser
+                    Informationen.</strong>
+            </p>
+
+            <h3>4. Externe Datenquellen (Open Food Facts)</h3>
+            <p>
+                Wir nutzen Daten von <a href="https://world.openfoodfacts.org" target="_blank">Open Food Facts</a>
+                (Nutri-Score, Eco-Score, Zutaten).
+                Diese Daten werden "as-is" bereitgestellt und können unvollständig oder veraltet sein.
+            </p>
+
+            <h2>📜 Nutzungsbedingungen</h2>
+
+            <h3>Für alle Nutzer:</h3>
+            <ul>
+                <li>Die Nutzung der Plattform erfolgt auf eigene Verantwortung</li>
+                <li>Preise sind unverbindliche Richtwerte zur Orientierung</li>
+                <li>Keine Garantie für Verfügbarkeit oder Qualität der Produkte</li>
+            </ul>
+
+            <h3>Für Beitragende:</h3>
+            <ul>
+                <li>Preismeldungen sollten nach bestem Wissen und Gewissen erfolgen</li>
+                <li>Vorsätzlich falsche Angaben können zur Sperrung führen</li>
+                <li>Mit dem Hochladen von Daten (Fotos, Preise) räumen Sie uns ein nicht-exklusives Nutzungsrecht ein
+                </li>
+            </ul>
+
+            <h2>🔒 Datenschutz</h2>
+            <p>
+                Wir speichern minimal notwendige Daten (Session-ID via IP-Hash für Anti-Spam).
+                Keine personenbezogenen Daten werden ohne Einwilligung erfasst.
+                Siehe separate <a href="/static/datenschutz.html">Datenschutzerklärung</a>.
+            </p>
+
+            <h2>⚖️ Haftungsbeschränkung</h2>
+            <p>
+                Wir haften nur für Schäden, die vorsätzlich oder grob fahrlässig durch uns verursacht wurden.
+                Die Haftung für leichte Fahrlässigkeit ist ausgeschlossen, soweit gesetzlich zulässig.
+            </p>
+            <p>
+                <strong>Für fehlerhafte Community-Daten (Preise, Standorte, Bewertungen) übernehmen wir keine
+                    Haftung.</strong>
+            </p>
+
+            <h2>📧 Kontakt</h2>
+            <p>
+                Bei Fragen, Anregungen oder Beschwerden kontaktieren Sie uns unter:<br>
+                <strong>[kontakt@example.com]</strong>
+            </p>
+
+            <hr style="margin: 32px 0; border: none; border-top: 1px solid var(--border);">
+
+            <p style="font-size: 14px; color: var(--text-muted); text-align: center;">
+                Stand: Oktober 2025 • <a href="/">← Zurück zur Startseite</a>
+            </p>
+        </div>
+    </div>
+
+    <footer style="background:var(--card);border-top:1px solid var(--border);padding:24px;margin-top:48px;">
+        <div
+            style="max-width:800px;margin:0 auto;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px;">
+            <div style="color:var(--text-muted);font-size:14px;">
+                © 2025 WirKaufenFair – Gemeinsam fair einkaufen
+            </div>
+            <div style="display:flex;gap:20px;font-size:14px;">
+                <a href="/static/impressum.html" style="color:var(--text);text-decoration:none;font-weight:500;">📄
+                    Impressum</a>
+                <a href="/static/datenschutz.html" style="color:var(--text);text-decoration:none;font-weight:500;">🔒
+                    Datenschutz</a>
+                <a href="/static/hilfe.html" style="color:var(--text);text-decoration:none;font-weight:500;">❓
+                    Hilfe</a>
+                <a href="mailto:kontakt@wirkaufenfair.de"
+                    style="color:var(--text);text-decoration:none;font-weight:500;">✉️ Kontakt</a>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        function initTheme() {
+            const savedTheme = localStorage.getItem('theme');
+            if (savedTheme) {
+                document.documentElement.setAttribute('data-theme', savedTheme);
+                updateThemeIcon(savedTheme);
+            } else {
+                const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                updateThemeIcon(prefersDark ? 'dark' : 'light');
+            }
+        }
+
+        function toggleTheme() {
+            const current = document.documentElement.getAttribute('data-theme');
+            const newTheme = current === 'dark' ? 'light' : 'dark';
+
+            document.documentElement.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            updateThemeIcon(newTheme);
+        }
+
+        function updateThemeIcon(theme) {
+            const btn = document.getElementById('theme-toggle');
+            if (btn) {
+                btn.textContent = theme === 'dark' ? '☀️' : '🌙';
+                btn.title = theme === 'dark' ? 'Heller Modus' : 'Dunkler Modus';
+            }
+        }
+
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+            if (!localStorage.getItem('theme')) {
+                updateThemeIcon(e.matches ? 'dark' : 'light');
+            }
+        });
+
+        initTheme();
+    </script>
+</body>
+
+</html>
