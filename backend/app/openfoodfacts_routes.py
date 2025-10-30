@@ -266,7 +266,7 @@ async def search_products(
     query: str = Query(..., description="Search term (e.g., 'Joghurt', 'Milch')"),
     country: str = Query("de", description="Country code"),
     page: int = Query(1, description="Page number"),
-    page_size: int = Query(20, description="Results per page"),
+    page_size: int = Query(50, description="Results per page"),
     max_results: Optional[int] = Query(None, description="If set, fetch up to this many total results by paging (server-capped)."),
     sort_by: str = Query('fair', description="Sort by: 'fair'|'green'|'nutri'|'ethics'|'price' (default: fair)"),
 ) -> Dict[str, Any]:
@@ -288,12 +288,23 @@ async def search_products(
         "page_size": page_size,
         "fields": base_fields
     }
+    # Heuristic: if query is a single token (no spaces) we also ask OFF to use its categories
+    # as an additional tag filter. OFF categories often improve recall for broad terms like 'Milch'.
+    try:
+        if isinstance(query, str) and query.strip() and ' ' not in query.strip():
+            params.update({
+                'tagtype_1': 'categories',
+                'tag_contains_1': 'contains',
+                'tag_1': query.strip().lower()
+            })
+    except Exception:
+        pass
     try:
         # If paging requested to collect many results, iterate pages
         products = []
         if desired:
-            # Cap per-page to 100 to be gentle on OFF
-            per_page = min(100, max(10, page_size))
+            # Use a per-page of 50 (OFF default page size) to align with OFF paging and reduce surprises
+            per_page = 50
             page_idx = 1
             while len(products) < desired and page_idx < 20:
                 try:
@@ -377,6 +388,8 @@ async def search_products(
                 t['__ethicsNumeric'] = 0.6
 
         # choose sorting method
+        # Important: when sort_by == 'fair' we DO NOT re-sort server-side here —
+        # we keep the OFF ordering (textual relevance) and let the frontend re-rank by fair score.
         sort_by = (sort_by or 'fair').lower()
         if sort_by == 'green':
             # sort by ecoscore (higher is better)
@@ -388,9 +401,12 @@ async def search_products(
         elif sort_by == 'price':
             # lower estimated_price first (cheaper first). Unknown prices go to the end.
             transformed.sort(key=lambda x: (x.get('estimated_price') is None, x.get('estimated_price', float('inf'))))
+        elif sort_by == 'fair':
+            # keep OFF-provided ordering (relevance) — frontend will apply fair re-ranking
+            pass
         else:
-            # default: fair score
-            transformed.sort(key=lambda x: x.get('__fairScore', 0), reverse=True)
+            # unknown sort requested -> keep OFF ordering
+            pass
 
         # Enrich top results (best-effort)
         try:

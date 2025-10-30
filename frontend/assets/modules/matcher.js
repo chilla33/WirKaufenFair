@@ -352,70 +352,23 @@ export async function findSuggestions(query, { allProducts = [], selectedStore =
             // product name, brands, categories or stores fields to reduce noise from broad text matches.
             const anchorLower = anchorList.map(a => a.toLowerCase());
             const rawBefore = offProducts.length;
-            // Use strict anchor matching (product_name / product_name_de / generic_name / brands)
-            const kept = [];
-            const filtered = [];
+            // Previously we filtered out OFF products that didn't contain strict anchor terms.
+            // To increase recall, keep all OFF results but mark which ones matched the anchor fields.
             for (const p of offProducts) {
                 const r = strictAnchorMatch(p, anchorLower);
                 if (r.matched) {
                     p.__matchedField = r.field;
-                    kept.push(p);
                 } else {
-                    filtered.push(p);
+                    p.__matchedField = null;
                 }
             }
-            offProducts = kept;
-            console.log(`matcher.findSuggestions: OFF filtered to ${offProducts.length} products (from ${rawBefore}) by strict anchor presence`);
-            // If OFF returned few results, keep fetching additional permutations / morphological expansions
-            // until we have at least `desiredKept` strict-kept products or a safe maximum of requests.
+            // counted later after alternatives decision
+            // We will NOT perform any alternative queries (permutations, morphological expansions,
+            // synonym expansions or a fallback big fetch). Use only the initial OFF response and
+            // local scoring to rank candidates. This keeps OFF query volume predictable.
             const desiredKept = Math.max(8, needed || 8);
-            if ((offProducts.length || 0) < desiredKept) {
-                const existingCodes = new Set(offProducts.map(p => p.code));
-
-                // Build a prioritized list of extra queries: morphological expansions, permutations, expandedQueries
-                const extraQueries = [];
-                if (isSingleToken) {
-                    const stem = coreTokens[0];
-                    // morphological expansions (curated + heuristics)
-                    try { morphologicalExpansions(stem).forEach(x => extraQueries.push(x)); } catch (e) { }
-                    // permutations already computed earlier - include some variants
-                    const perms = [stem + ' drink', stem + ' milch', 'oat ' + stem, stem + ' barista', 'hafer ' + stem];
-                    perms.forEach(p => extraQueries.push(p));
-                }
-                // include synonyms/categories alternates but keep limited
-                expandedQueries.slice(0, 8).forEach(q => { if (q && q.toLowerCase() !== query.toLowerCase()) extraQueries.push(q); });
-
-                let extraRequests = 0;
-                const maxExtraRequests = 12;
-                for (const alt of extraQueries) {
-                    if (extraRequests >= maxExtraRequests) break;
-                    if (!alt) continue;
-                    const altLower = alt.toLowerCase();
-                    if (altLower === query.toLowerCase()) continue;
-                    try {
-                        extraRequests++;
-                        const altRes = await off.fetchOffProducts(alt, 80, 200);
-                        if (altRes && altRes.length > 0) {
-                            console.log(`matcher.findSuggestions: OFF extra '${alt}' returned ${altRes.length}`);
-                            for (const p of altRes) {
-                                if (!p || !p.code) continue;
-                                if (existingCodes.has(p.code)) continue;
-                                // check strict anchor match for this alt set as well
-                                const r = strictAnchorMatch(p, anchorLower);
-                                if (r.matched) {
-                                    p.__matchedField = r.field;
-                                    offProducts.push(p);
-                                    existingCodes.add(p.code);
-                                }
-                            }
-                        }
-                    } catch (e) {
-                        console.warn('matcher: extra OFF fetch failed for', alt, e);
-                    }
-                    if ((offProducts.length || 0) >= desiredKept) break;
-                }
-                console.log(`matcher.findSuggestions: after extra fetches kept ${offProducts.length} products (desired ${desiredKept})`);
-            }
+            let anchoredCount = offProducts.filter(p => p.__matchedField).length;
+            console.log(`matcher.findSuggestions: alternatives disabled; anchored=${anchoredCount}, total=${offProducts.length}, desired=${desiredKept}`);
             const scoredOff = offProducts.map(p => {
                 const identifier = p.product_identifier || p.product_name || '';
                 const idLower = identifier.toLowerCase();
