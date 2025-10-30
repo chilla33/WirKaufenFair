@@ -1,0 +1,35 @@
+{
+    "name": "wirkaufenfair",
+    "version": "1.0.0",
+    "description": "Open Source App für nachhaltigen und ethischen Einkauf – mit Community-Power",
+    "scripts": {
+        "build": "esbuild frontend/assets/main.js --bundle --minify --sourcemap --outfile=frontend/assets/bundle.js",
+        "dev": "esbuild frontend/assets/main.js --bundle --sourcemap --watch --outfile=frontend/assets/bundle.js",
+        "dev:serve": "concurrently \"npm run dev\" \"python -m uvicorn backend.app.main:app --reload\"",
+        "lint": "eslint frontend/assets/**/*.js",
+        "format": "prettier --write frontend/assets/**/*.js"
+    },
+    "keywords": [
+        "shopping",
+        "sustainability",
+        "ethics",
+        "community",
+        "fair-trade"
+    ],
+    "author": "WirKaufenFair Community",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/chilla33/WirkaufenFair.git"
+    },
+    "devDependencies": {
+        "esbuild": "^0.20.0",
+        "eslint": "^8.57.0",
+        "prettier": "^3.2.5",
+        "concurrently": "^8.2.2"
+    },
+    "engines": {
+        "node": ">=18.0.0",
+        "npm": ">=9.0.0"
+    }
+}

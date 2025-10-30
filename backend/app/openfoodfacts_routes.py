@@ -11,9 +11,11 @@ from datetime import datetime, timedelta
 import hashlib
 import json
 import asyncio
+import asyncio
 from .ethics_db import get_ethics_score, extract_brand_from_product, get_ethics_issues_summary
 
 router = APIRouter(prefix="/api/v1/openfoodfacts", tags=["OpenFoodFacts"])
+
 
 
 # Simple in-memory TTL cache
@@ -22,9 +24,11 @@ class TTLCache:
         self.cache = {}
         self.ttl = timedelta(minutes=ttl_minutes)
 
+
     def _make_key(self, *args, **kwargs) -> str:
         key_data = json.dumps([args, sorted(kwargs.items())], sort_keys=True)
         return hashlib.md5(key_data.encode()).hexdigest()
+
 
     def get(self, *args, **kwargs) -> Optional[Any]:
         key = self._make_key(*args, **kwargs)
@@ -59,42 +63,6 @@ OFF_PRODUCT = "https://world.openfoodfacts.org/api/v0/product"
 
 # SSL verification disabled for some Windows environments (kept for historical reasons)
 VERIFY_SSL = False
-
-# Extended timeout for slow OFF API
-REQUEST_TIMEOUT = 30.0
-
-
-async def http_get_with_retry(url, params=None, timeout=REQUEST_TIMEOUT, retries=3, verify=VERIFY_SSL):
-    """Simple async GET with exponential backoff retries."""
-    delay = 0.5
-    last_exc = None
-    for attempt in range(1, retries + 1):
-        try:
-            async with httpx.AsyncClient(verify=verify, timeout=timeout) as client:
-                resp = await client.get(url, params=params)
-                # Log non-2xx for diagnostics
-                if resp.status_code >= 400:
-                    text_snip = None
-                    try:
-                        text_snip = resp.text[:1000]
-                    except Exception:
-                        text_snip = '<no-body>'
-                    print(f'HTTP GET attempt {attempt} to {url} returned status={resp.status_code} body_snip={text_snip}')
-                    resp.raise_for_status()
-                return resp
-        except Exception as e:
-            last_exc = e
-            # More explicit timeout handling to aid debugging
-            from httpx import ReadTimeout
-            if isinstance(e, ReadTimeout):
-                print(f'HTTP GET attempt {attempt} to {url} failed with ReadTimeout: {e}')
-            else:
-                print(f'HTTP GET attempt {attempt} to {url} failed: {e}')
-            if attempt == retries:
-                break
-            await asyncio.sleep(delay)
-            delay *= 2
-    raise last_exc
 
 
 def extract_size_from_quantity(quantity: str) -> tuple[Optional[float], Optional[str]]:
